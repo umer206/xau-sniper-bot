@@ -60,6 +60,13 @@ Run one scan cycle:
 python -m xau_sniper_bot.bot --config config.json --once
 ```
 
+If the external analyzer is enabled, make sure `groq` is installed too because
+`C:\2026\CodexAlyzer\main.py` imports it:
+
+```powershell
+pip install groq
+```
+
 Run continuously:
 
 ```powershell
