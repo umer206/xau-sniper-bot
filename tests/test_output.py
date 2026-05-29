@@ -15,6 +15,7 @@ from xau_sniper_bot.models import (
     Zone,
 )
 from xau_sniper_bot.output import format_trade_setup
+from xau_sniper_bot.output import format_no_trade_setup
 
 
 class OutputFormatterTests(TestCase):
@@ -90,6 +91,38 @@ class OutputFormatterTests(TestCase):
         self.assertIn("Target 2  : 4535.37", text)
         self.assertIn("R:R       : 1:1.5", text)
         self.assertIn("Confluence:", text)
+
+    def test_no_trade_block_explains_waiting_zone(self) -> None:
+        text = format_no_trade_setup(
+            symbol="XAUUSD",
+            reason="M1 sniper trigger incomplete.",
+            current_price=4563.04,
+            bias=BiasSnapshot(
+                symbol="XAUUSD",
+                timeframe="H1",
+                bias=Bias.BULLISH,
+                updated_at=_dt("2026-01-01T14:00:00+00:00"),
+                last_close=4563.04,
+                reason=["Recent H1 swings show higher high and higher low"],
+            ),
+            zones=[
+                Zone(
+                    symbol="XAUUSD",
+                    direction=Direction.BUY,
+                    timeframe="M15",
+                    low=4508.19,
+                    high=4516.57,
+                    anchor_time=_dt("2026-01-01T13:30:00+00:00"),
+                    created_at=_dt("2026-01-01T13:30:00+00:00"),
+                    reason=["M15 demand/support"],
+                )
+            ],
+            external_analysis=None,
+        )
+
+        self.assertIn("Direction : NO TRADE", text)
+        self.assertIn("Current XAUUSD price is 4563.04", text)
+        self.assertIn("Waiting for price to enter the buy zone 4508.19-4516.57", text)
 
 
 def _dt(value: str) -> datetime:

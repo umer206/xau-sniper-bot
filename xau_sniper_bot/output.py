@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
+from datetime import datetime
+from enum import Enum
 from pathlib import Path
 
 from .config import BotConfig
-from .models import Direction, Signal, TargetLevel
+from .models import BiasSnapshot, Direction, ExternalAnalysis, Signal, TargetLevel, Zone
 
 
 class OutputWriter:
@@ -17,6 +20,40 @@ class OutputWriter:
         payload = signal.to_dict()
         payload["trade_setup_text"] = format_trade_setup(signal)
         self._write_console(signal)
+        self._write_jsonl(payload)
+        self._write_chart_bridge(payload)
+
+    def write_no_trade(
+        self,
+        *,
+        symbol: str,
+        reason: str,
+        current_price: float | None = None,
+        bias: BiasSnapshot | None = None,
+        zones: list[Zone] | None = None,
+        external_analysis: ExternalAnalysis | None = None,
+    ) -> None:
+        text = format_no_trade_setup(
+            symbol=symbol,
+            reason=reason,
+            current_price=current_price,
+            bias=bias,
+            zones=zones or [],
+            external_analysis=external_analysis,
+        )
+        payload = {
+            "type": "no_trade",
+            "symbol": symbol,
+            "reason": reason,
+            "current_price": current_price,
+            "bias": _payload_safe(asdict(bias)) if bias else None,
+            "zones": [_payload_safe(asdict(zone)) for zone in zones or []],
+            "external_analysis": _payload_safe(asdict(external_analysis))
+            if external_analysis
+            else None,
+            "trade_setup_text": text,
+        }
+        print("\n" + text)
         self._write_jsonl(payload)
         self._write_chart_bridge(payload)
 
@@ -79,6 +116,33 @@ def format_trade_setup(signal: Signal) -> str:
     )
 
 
+def format_no_trade_setup(
+    *,
+    symbol: str,
+    reason: str,
+    current_price: float | None,
+    bias: BiasSnapshot | None,
+    zones: list[Zone],
+    external_analysis: ExternalAnalysis | None,
+) -> str:
+    zone_text = _zone_wait_text(zones, current_price)
+    bias_text = bias.bias.value if bias else "unknown"
+    price_text = f"{current_price:.2f}" if current_price is not None else "n/a"
+    return "\n".join(
+        [
+            "=== TRADE SETUP ===",
+            "Direction : NO TRADE",
+            f"Entry     : Waiting. Current {symbol} price is {price_text}. {zone_text}",
+            "Stop Loss : N/A",
+            "Target 1  : N/A",
+            "Target 2  : N/A",
+            "R:R       : N/A",
+            _external_no_trade_line(external_analysis),
+            f"Confluence: H1 bias is {bias_text}. {reason}",
+        ]
+    )
+
+
 def _target_line(target: TargetLevel) -> str:
     suffix = f" @ {_time_label(target.anchor_time)}" if target.anchor_time else ""
     return f"{target.price:.2f}, {target.label}{suffix}."
@@ -123,6 +187,22 @@ def _confluence(signal: Signal) -> str:
     return ", ".join(pieces) + "."
 
 
+def _zone_wait_text(zones: list[Zone], current_price: float | None) -> str:
+    if not zones:
+        return "No active setup zone is available."
+    zone = _nearest_zone(zones, current_price)
+    direction = "buy" if zone.direction == Direction.BUY else "sell"
+    if current_price is not None and zone.low <= current_price <= zone.high:
+        return f"Price is inside the {direction} zone {zone.low:.2f}-{zone.high:.2f}."
+    return f"Waiting for price to enter the {direction} zone {zone.low:.2f}-{zone.high:.2f}."
+
+
+def _nearest_zone(zones: list[Zone], current_price: float | None) -> Zone:
+    if current_price is None:
+        return zones[0]
+    return min(zones, key=lambda zone: abs(zone.midpoint - current_price))
+
+
 def _external_line(signal: Signal) -> str:
     analysis = signal.external_analysis
     if analysis is None:
@@ -130,6 +210,18 @@ def _external_line(signal: Signal) -> str:
     if analysis.direction == "ERROR":
         return f"Second AI : ERROR - {'; '.join(analysis.reason)}"
     status = "ALIGNED" if _external_direction_matches(signal) else "NOT ALIGNED"
+    return (
+        f"Second AI : {analysis.direction} ({status}) | "
+        f"Bull {analysis.bull_score} / Bear {analysis.bear_score}."
+    )
+
+
+def _external_no_trade_line(analysis: ExternalAnalysis | None) -> str:
+    if analysis is None:
+        return "Second AI : Not called; primary setup is not near-valid yet."
+    if analysis.direction == "ERROR":
+        return f"Second AI : ERROR - {'; '.join(analysis.reason)}"
+    status = "TRADEABLE" if analysis.tradeable else "NO TRADE"
     return (
         f"Second AI : {analysis.direction} ({status}) | "
         f"Bull {analysis.bull_score} / Bear {analysis.bear_score}."
@@ -148,3 +240,15 @@ def _time_label(value: object) -> str:
     if value is None:
         return "n/a"
     return value.strftime("%H:%M")
+
+
+def _payload_safe(value: object) -> object:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, list):
+        return [_payload_safe(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _payload_safe(item) for key, item in value.items()}
+    return value

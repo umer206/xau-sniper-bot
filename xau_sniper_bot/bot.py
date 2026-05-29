@@ -10,7 +10,7 @@ import pandas as pd
 from .config import BotConfig, load_config
 from .confirmation import M5ConfirmationEngine
 from .external_analyzer import ExternalAnalyzer
-from .models import Bias, BiasSnapshot, Direction, Signal, Zone
+from .models import Bias, BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
 from .mt5_client import MT5Client
 from .openai_validator import OpenAIValidator
 from .output import OutputWriter
@@ -68,21 +68,45 @@ class XauSniperBot:
         self._refresh_m5_if_due(now)
 
         if self.state.bias is None or self.state.bias.bias == Bias.NEUTRAL:
-            print("No directional H1 bias yet; standing aside.")
+            self._write_no_trade(
+                "No directional H1 bias yet; standing aside.",
+                current_price=self.state.bias.last_close if self.state.bias else None,
+                zones=[],
+            )
             return
         if not self.state.zones:
-            print(f"{self.config.symbol} {self.state.bias.bias.value} bias, but no M15 zone.")
+            self._write_no_trade(
+                f"{self.config.symbol} {self.state.bias.bias.value} bias, but no M15 zone.",
+                current_price=self.state.bias.last_close,
+                zones=[],
+            )
             return
 
         m1 = self.mt5.rates("M1", self.config.m1_bars)
+        current_price = float(m1.iloc[-1]["close"])
         direction_for_bias = _direction_for_bias(self.state.bias.bias)
-        for zone in self.state.zones:
-            if zone.direction != direction_for_bias:
-                continue
+        matching_zones = [
+            zone for zone in self.state.zones if zone.direction == direction_for_bias
+        ]
+        if not matching_zones:
+            self._write_no_trade(
+                "No M15 setup zone aligns with the H1 bias.",
+                current_price=current_price,
+                zones=self.state.zones,
+            )
+            return
+
+        wait_reasons: list[str] = []
+        for zone in matching_zones:
             if self.state.m5 is None:
+                wait_reasons.append("M5 confirmation data is not available yet.")
                 continue
             confirmation = self.confirmation_engine.confirm(self.state.m5, zone)
             if not confirmation.confirmed:
+                wait_reasons.append(
+                    f"M5 not confirmed for {zone.low:.2f}-{zone.high:.2f}: "
+                    f"{'; '.join(confirmation.reason)}"
+                )
                 continue
             targets = self.zone_engine.target_levels(
                 self.state.m15,
@@ -92,6 +116,10 @@ class XauSniperBot:
             )
             trigger = self.scanner.scan(m1, zone, targets)
             if trigger is None:
+                wait_reasons.append(
+                    f"M1 sniper trigger incomplete for {zone.low:.2f}-{zone.high:.2f}; "
+                    "waiting for liquidity sweep, rejection, CHOCH/BOS, and displacement."
+                )
                 continue
 
             external_analysis = self.external_analyzer.analyze()
@@ -125,7 +153,20 @@ class XauSniperBot:
                     f"confidence={validation.confidence:.2f}{external_note} "
                     f"notes={validation.risk_notes}"
                 )
-            break
+                self._write_no_trade(
+                    "Candidate setup was rejected by validation or second-analyzer alignment.",
+                    current_price=current_price,
+                    zones=matching_zones,
+                    external_analysis=external_analysis,
+                )
+            return
+
+        reason = wait_reasons[0] if wait_reasons else "No complete entry trigger yet."
+        self._write_no_trade(
+            reason,
+            current_price=current_price,
+            zones=matching_zones,
+        )
 
     def _refresh_h1_if_due(self, now: datetime) -> None:
         if not _due(self.state.h1_updated_at, now, self.config.h1_check_minutes):
@@ -165,6 +206,26 @@ class XauSniperBot:
         self.state.m5 = self.mt5.rates("M5", self.config.m5_bars)
         self.state.m5_updated_at = now
         print("M5 confirmation data refreshed")
+
+    def _write_no_trade(
+        self,
+        reason: str,
+        current_price: float | None,
+        zones: list[Zone],
+        external_analysis: ExternalAnalysis | None = None,
+    ) -> None:
+        if self.output is None:
+            return
+        if external_analysis is None and self.config.external_analyzer_enabled:
+            external_analysis = self.external_analyzer.analyze()
+        self.output.write_no_trade(
+            symbol=self.config.symbol,
+            reason=reason,
+            current_price=current_price,
+            bias=self.state.bias,
+            zones=zones,
+            external_analysis=external_analysis,
+        )
 
 
 def _due(last_run: datetime | None, now: datetime, minutes: int) -> bool:
