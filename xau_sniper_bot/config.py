@@ -35,6 +35,15 @@ class BotConfig:
     external_analyzer_enabled: bool = False
     external_analyzer_path: str = r"C:\2026\CodexAlyzer\main.py"
     external_analyzer_require_alignment: bool = True
+    trade_execution_enabled: bool = False
+    trade_volume: float = 0.01
+    trade_take_profit_target: int = 1
+    trade_max_spread: float = 0.50
+    trade_deviation_points: int = 20
+    trade_magic: int = 260529
+    trade_comment: str = "xau-sniper-bot"
+    trade_allow_existing_position: bool = False
+    trade_filling_mode: str = "auto"
     openai_enabled: bool = False
     openai_model: str = "gpt-5.2"
     openai_min_confidence: float = 0.70

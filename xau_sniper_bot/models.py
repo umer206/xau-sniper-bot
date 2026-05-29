@@ -115,6 +115,17 @@ class ExternalAnalysis:
 
 
 @dataclass(frozen=True)
+class ExecutionResult:
+    status: str
+    message: str
+    order_id: int | None = None
+    retcode: int | None = None
+    price: float | None = None
+    volume: float | None = None
+    target_used: str | None = None
+
+
+@dataclass(frozen=True)
 class Signal:
     symbol: str
     bias: BiasSnapshot
@@ -123,6 +134,7 @@ class Signal:
     trigger: SniperTrigger
     validation: ValidationResult
     external_analysis: ExternalAnalysis | None = None
+    execution: ExecutionResult | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:

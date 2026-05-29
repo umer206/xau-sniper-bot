@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -10,6 +10,7 @@ import pandas as pd
 from .config import BotConfig, load_config
 from .confirmation import M5ConfirmationEngine
 from .external_analyzer import ExternalAnalyzer
+from .execution import MT5TradeExecutor
 from .models import Bias, BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
 from .mt5_client import MT5Client
 from .openai_validator import OpenAIValidator
@@ -38,6 +39,7 @@ class XauSniperBot:
         self.zone_engine = M15ZoneEngine(config)
         self.confirmation_engine = M5ConfirmationEngine(config)
         self.external_analyzer = ExternalAnalyzer(config)
+        self.trade_executor = MT5TradeExecutor(config, self.mt5)
         self.scanner = M1SniperScanner(config)
         self.validator = OpenAIValidator(config)
         self.state = MarketState()
@@ -139,6 +141,8 @@ class XauSniperBot:
             )
             if self.validator.should_emit(signal) and external_aligned:
                 assert self.output is not None
+                execution = self.trade_executor.execute(signal)
+                signal = replace(signal, execution=execution)
                 self.output.write_signal(signal)
             else:
                 external_note = ""

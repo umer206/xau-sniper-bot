@@ -77,6 +77,28 @@ Run continuously:
 python -m xau_sniper_bot.bot --config config.json
 ```
 
+## MT5 Execution
+
+The bot can send approved setups to MT5 as market orders. Live execution needs
+both:
+
+- `trade_execution_enabled: true` in `config.json`
+- `--live` on the command line
+
+Without `--live`, the bot stays in dry-run mode and prints `Execution : DRY_RUN`.
+
+```powershell
+python -m xau_sniper_bot.bot --config config.json --live
+```
+
+Execution guardrails:
+
+- Uses `trade_volume`, default `0.01`.
+- Uses Target 1 as TP by default. Set `trade_take_profit_target` to `2` to use Target 2.
+- Blocks duplicate positions unless `trade_allow_existing_position` is true.
+- Blocks entries when spread is above `trade_max_spread`.
+- Sends SL and TP with the MT5 order.
+
 Disable OpenAI from the CLI:
 
 ```powershell

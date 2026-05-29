@@ -111,6 +111,7 @@ def format_trade_setup(signal: Signal) -> str:
             f"Target 2  : {_target_line(trigger.target_2)}",
             f"R:R       : 1:{trigger.risk_reward:.1f}",
             _external_line(signal),
+            _execution_line(signal),
             f"Confluence: {_confluence(signal)}",
         ]
     )
@@ -274,6 +275,13 @@ def _external_no_trade_line(analysis: ExternalAnalysis | None) -> str:
         f"Second AI : {analysis.direction} ({status}) | "
         f"Bull {analysis.bull_score} / Bear {analysis.bear_score}."
     )
+
+
+def _execution_line(signal: Signal) -> str:
+    execution = signal.execution
+    if execution is None:
+        return "Execution : Not attempted."
+    return f"Execution : {execution.status.upper()} - {execution.message}"
 
 
 def _external_direction_matches(signal: Signal) -> bool:
