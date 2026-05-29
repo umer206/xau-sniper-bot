@@ -6,7 +6,7 @@ from unittest import TestCase
 import pandas as pd
 
 from xau_sniper_bot.config import BotConfig
-from xau_sniper_bot.models import Direction, Zone
+from xau_sniper_bot.models import Direction, TargetLevel, Zone
 from xau_sniper_bot.sniper import M1SniperScanner
 
 
@@ -45,12 +45,23 @@ class M1SniperScannerTests(TestCase):
         rows[58].update({"open": 2000.80, "high": 2001.10, "low": 2000.50, "close": 2000.90})
         rows[59].update({"open": 2000.90, "high": 2002.60, "low": 2000.70, "close": 2002.30})
 
-        trigger = scanner.scan(pd.DataFrame(rows), zone, take_profit=2008.00)
+        trigger = scanner.scan(
+            pd.DataFrame(rows),
+            zone,
+            [
+                TargetLevel(
+                    price=2008.00,
+                    label="nearest M15 swing high liquidity",
+                    timeframe="M15",
+                )
+            ],
+        )
 
         self.assertIsNotNone(trigger)
         assert trigger is not None
         self.assertEqual(trigger.direction, Direction.BUY)
         self.assertGreater(trigger.entry_price, trigger.bos_level)
         self.assertLess(trigger.stop_loss, trigger.swept_level)
+        self.assertEqual(trigger.target_1.price, 2008.00)
+        self.assertEqual(trigger.take_profit, 2008.00)
         self.assertGreaterEqual(trigger.risk_reward, config.risk_reward_floor)
-

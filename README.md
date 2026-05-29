@@ -15,6 +15,19 @@ The bot is dry-run by default. It prints signals to the console and writes JSONL
 - `balanced`: EMA stack or clean HH/HL / LH/LL structure can define bias.
 - `strict`: EMA stack must agree with recent swing structure.
 
+Signal output is formatted as a trader-facing setup block:
+
+```text
+=== TRADE SETUP ===
+Direction : LONG
+Entry     : 4527.92, based on the bullish OB / demand zone @ 14:28 and the bullish CHOCH/BOS @ 14:38.
+Stop Loss : 4525.95, below the sell-side liquidity sweep low @ 4526.10.
+Target 1  : 4530.95, nearest M15 swing high liquidity @ 13:30.
+Target 2  : 4535.37, extended H1 swing high liquidity @ 13:50.
+R:R       : 1:1.5
+Confluence: Bullish H1 bias, M15 demand/support zone, M5 confirmation, M1 liquidity sweep, rejection candle, CHOCH/BOS, displacement candle.
+```
+
 ## Setup
 
 1. Install dependencies:

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from .config import BotConfig
-from .models import Signal
+from .models import Direction, Signal, TargetLevel
 
 
 class OutputWriter:
@@ -15,25 +15,13 @@ class OutputWriter:
 
     def write_signal(self, signal: Signal) -> None:
         payload = signal.to_dict()
+        payload["trade_setup_text"] = format_trade_setup(signal)
         self._write_console(signal)
         self._write_jsonl(payload)
         self._write_chart_bridge(payload)
 
     def _write_console(self, signal: Signal) -> None:
-        trigger = signal.trigger
-        validation = signal.validation
-        print(
-            "\n"
-            f"[{signal.generated_at.isoformat()}] {signal.symbol} "
-            f"{trigger.direction.value.upper()} "
-            f"{validation.decision.upper()} confidence={validation.confidence:.2f}\n"
-            f"entry={trigger.entry_price:.2f} sl={trigger.stop_loss:.2f} "
-            f"tp={trigger.take_profit:.2f} rr={trigger.risk_reward:.2f}\n"
-            f"zone={signal.zone.low:.2f}-{signal.zone.high:.2f} "
-            f"bias={signal.bias.bias.value} m5={signal.confirmation.confirmed} "
-            f"source={validation.source}\n"
-            f"notes={' | '.join(validation.execution_notes or trigger.reason)}"
-        )
+        print("\n" + format_trade_setup(signal))
 
     def _write_jsonl(self, payload: dict) -> None:
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -55,3 +43,80 @@ class OutputWriter:
         if self.config.mt5_chart_bridge_path:
             return Path(self.config.mt5_chart_bridge_path)
         return default_path
+
+
+def format_trade_setup(signal: Signal) -> str:
+    trigger = signal.trigger
+    direction = "LONG" if trigger.direction == Direction.BUY else "SHORT"
+    zone_name = _zone_name(trigger.direction)
+    choch = _choch_name(trigger.direction)
+    stop_side = "below" if trigger.direction == Direction.BUY else "above"
+    swept_side = (
+        "sell-side liquidity sweep low"
+        if trigger.direction == Direction.BUY
+        else "buy-side liquidity sweep high"
+    )
+
+    return "\n".join(
+        [
+            "=== TRADE SETUP ===",
+            f"Direction : {direction}",
+            (
+                f"Entry     : {trigger.entry_price:.2f}, based on the {zone_name} "
+                f"@ {_time_label(signal.zone.anchor_time)} and the {choch} "
+                f"@ {_time_label(trigger.timestamp)}."
+            ),
+            (
+                f"Stop Loss : {trigger.stop_loss:.2f}, {stop_side} the {swept_side} "
+                f"@ {trigger.swept_level:.2f}."
+            ),
+            f"Target 1  : {_target_line(trigger.target_1)}",
+            f"Target 2  : {_target_line(trigger.target_2)}",
+            f"R:R       : 1:{trigger.risk_reward:.1f}",
+            f"Confluence: {_confluence(signal)}",
+        ]
+    )
+
+
+def _target_line(target: TargetLevel) -> str:
+    suffix = f" @ {_time_label(target.anchor_time)}" if target.anchor_time else ""
+    return f"{target.price:.2f}, {target.label}{suffix}."
+
+
+def _zone_name(direction: Direction) -> str:
+    if direction == Direction.BUY:
+        return "bullish OB / demand zone"
+    return "bearish OB / supply zone"
+
+
+def _choch_name(direction: Direction) -> str:
+    if direction == Direction.BUY:
+        return "bullish CHOCH/BOS"
+    return "bearish CHOCH/BOS"
+
+
+def _confluence(signal: Signal) -> str:
+    direction_word = "Bullish" if signal.trigger.direction == Direction.BUY else "Bearish"
+    zone_word = (
+        "demand/support"
+        if signal.trigger.direction == Direction.BUY
+        else "supply/resistance"
+    )
+    pieces = [
+        f"{direction_word} H1 bias",
+        f"M15 {zone_word} zone",
+        "M5 confirmation",
+        "M1 liquidity sweep",
+        "rejection candle",
+        "CHOCH/BOS",
+        "displacement candle",
+    ]
+    if signal.validation.source == "openai" and signal.validation.approved:
+        pieces.append("OpenAI validation")
+    return ", ".join(pieces) + "."
+
+
+def _time_label(value: object) -> str:
+    if value is None:
+        return "n/a"
+    return value.strftime("%H:%M")
