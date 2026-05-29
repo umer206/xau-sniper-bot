@@ -9,6 +9,7 @@ import pandas as pd
 
 from .config import BotConfig, load_config
 from .confirmation import M5ConfirmationEngine
+from .external_analyzer import ExternalAnalyzer
 from .models import Bias, BiasSnapshot, Direction, Signal, Zone
 from .mt5_client import MT5Client
 from .openai_validator import OpenAIValidator
@@ -36,6 +37,7 @@ class XauSniperBot:
         self.bias_engine = H1BiasEngine(config)
         self.zone_engine = M15ZoneEngine(config)
         self.confirmation_engine = M5ConfirmationEngine(config)
+        self.external_analyzer = ExternalAnalyzer(config)
         self.scanner = M1SniperScanner(config)
         self.validator = OpenAIValidator(config)
         self.state = MarketState()
@@ -92,6 +94,7 @@ class XauSniperBot:
             if trigger is None:
                 continue
 
+            external_analysis = self.external_analyzer.analyze()
             validation = self.validator.validate(self.state.bias, zone, confirmation, trigger)
             signal = Signal(
                 symbol=self.config.symbol,
@@ -100,14 +103,27 @@ class XauSniperBot:
                 confirmation=confirmation,
                 trigger=trigger,
                 validation=validation,
+                external_analysis=external_analysis,
             )
-            if self.validator.should_emit(signal):
+            external_aligned = self.external_analyzer.aligns_with(
+                external_analysis,
+                trigger.direction,
+            )
+            if self.validator.should_emit(signal) and external_aligned:
                 assert self.output is not None
                 self.output.write_signal(signal)
             else:
+                external_note = ""
+                if external_analysis is not None:
+                    external_note = (
+                        f" external={external_analysis.direction} "
+                        f"bull={external_analysis.bull_score} "
+                        f"bear={external_analysis.bear_score}"
+                    )
                 print(
                     f"Signal rejected: {validation.decision} "
-                    f"confidence={validation.confidence:.2f} notes={validation.risk_notes}"
+                    f"confidence={validation.confidence:.2f}{external_note} "
+                    f"notes={validation.risk_notes}"
                 )
             break
 

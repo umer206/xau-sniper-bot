@@ -7,6 +7,7 @@ Multi-timeframe MT5 scanner for Gold setups:
 - M5: confirmation after zone interaction
 - M1: sniper trigger timing
 - OpenAI: final validation only after zone interaction, M5 confirmation, and a near-valid M1 trigger
+- Optional external analyzer: one-shot SMC confluence from `C:\2026\CodexAlyzer\main.py`
 
 The bot is dry-run by default. It prints signals to the console and writes JSONL signal records locally.
 
@@ -25,6 +26,7 @@ Stop Loss : 4525.95, below the sell-side liquidity sweep low @ 4526.10.
 Target 1  : 4530.95, nearest M15 swing high liquidity @ 13:30.
 Target 2  : 4535.37, extended H1 swing high liquidity @ 13:50.
 R:R       : 1:1.5
+Second AI : LONG (ALIGNED) | Bull 4 / Bear 1.
 Confluence: Bullish H1 bias, M15 demand/support zone, M5 confirmation, M1 liquidity sweep, rejection candle, CHOCH/BOS, displacement candle.
 ```
 

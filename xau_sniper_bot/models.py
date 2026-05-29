@@ -102,6 +102,19 @@ class ValidationResult:
 
 
 @dataclass(frozen=True)
+class ExternalAnalysis:
+    name: str
+    path: str
+    direction: str
+    tradeable: bool
+    bull_score: int
+    bear_score: int
+    analyzed_at: datetime
+    reason: list[str]
+    details: list[str]
+
+
+@dataclass(frozen=True)
 class Signal:
     symbol: str
     bias: BiasSnapshot
@@ -109,6 +122,7 @@ class Signal:
     confirmation: ConfirmationSnapshot
     trigger: SniperTrigger
     validation: ValidationResult
+    external_analysis: ExternalAnalysis | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:

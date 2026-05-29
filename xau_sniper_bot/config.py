@@ -32,6 +32,9 @@ class BotConfig:
     min_m1_atr: float = 0.0
     max_m1_atr: float = 0.0
     risk_reward_floor: float = 1.25
+    external_analyzer_enabled: bool = False
+    external_analyzer_path: str = r"C:\2026\CodexAlyzer\main.py"
+    external_analyzer_require_alignment: bool = True
     openai_enabled: bool = False
     openai_model: str = "gpt-5.2"
     openai_min_confidence: float = 0.70

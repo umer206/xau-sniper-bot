@@ -73,6 +73,7 @@ def format_trade_setup(signal: Signal) -> str:
             f"Target 1  : {_target_line(trigger.target_1)}",
             f"Target 2  : {_target_line(trigger.target_2)}",
             f"R:R       : 1:{trigger.risk_reward:.1f}",
+            _external_line(signal),
             f"Confluence: {_confluence(signal)}",
         ]
     )
@@ -113,7 +114,34 @@ def _confluence(signal: Signal) -> str:
     ]
     if signal.validation.source == "openai" and signal.validation.approved:
         pieces.append("OpenAI validation")
+    if signal.external_analysis and signal.external_analysis.tradeable:
+        pieces.append(
+            f"external analyzer aligned {signal.external_analysis.direction} "
+            f"({signal.external_analysis.bull_score}/"
+            f"{signal.external_analysis.bear_score})"
+        )
     return ", ".join(pieces) + "."
+
+
+def _external_line(signal: Signal) -> str:
+    analysis = signal.external_analysis
+    if analysis is None:
+        return "Second AI : Disabled."
+    if analysis.direction == "ERROR":
+        return f"Second AI : ERROR - {'; '.join(analysis.reason)}"
+    status = "ALIGNED" if _external_direction_matches(signal) else "NOT ALIGNED"
+    return (
+        f"Second AI : {analysis.direction} ({status}) | "
+        f"Bull {analysis.bull_score} / Bear {analysis.bear_score}."
+    )
+
+
+def _external_direction_matches(signal: Signal) -> bool:
+    analysis = signal.external_analysis
+    if analysis is None or not analysis.tradeable:
+        return False
+    expected = "LONG" if signal.trigger.direction == Direction.BUY else "SHORT"
+    return analysis.direction == expected
 
 
 def _time_label(value: object) -> str:
