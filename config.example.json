@@ -8,6 +8,7 @@
   "m15_check_minutes": 15,
   "m5_check_minutes": 5,
   "m1_check_seconds": 60,
+  "h1_bias_mode": "balanced",
   "swing_window": 2,
   "atr_period": 14,
   "zone_atr_padding": 0.20,

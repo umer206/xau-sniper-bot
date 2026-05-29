@@ -61,9 +61,13 @@ class H1BiasEngine:
         if lower_highs and lower_lows:
             reason.append("Recent H1 swings show lower high and lower low")
 
-        if bullish_ema and (higher_lows or higher_highs):
+        mode = self.config.h1_bias_mode.lower()
+        if mode not in {"strict", "balanced"}:
+            raise ValueError("h1_bias_mode must be either 'strict' or 'balanced'")
+
+        if self._bullish_bias(mode, bullish_ema, higher_highs, higher_lows):
             bias = Bias.BULLISH
-        elif bearish_ema and (lower_highs or lower_lows):
+        elif self._bearish_bias(mode, bearish_ema, lower_highs, lower_lows):
             bias = Bias.BEARISH
         else:
             bias = Bias.NEUTRAL
@@ -79,6 +83,28 @@ class H1BiasEngine:
             swing_high=float(recent_highs[-1]) if recent_highs else None,
             swing_low=float(recent_lows[-1]) if recent_lows else None,
         )
+
+    def _bullish_bias(
+        self,
+        mode: str,
+        bullish_ema: bool,
+        higher_highs: bool,
+        higher_lows: bool,
+    ) -> bool:
+        if mode == "strict":
+            return bullish_ema and (higher_lows or higher_highs)
+        return bullish_ema or (higher_highs and higher_lows)
+
+    def _bearish_bias(
+        self,
+        mode: str,
+        bearish_ema: bool,
+        lower_highs: bool,
+        lower_lows: bool,
+    ) -> bool:
+        if mode == "strict":
+            return bearish_ema and (lower_highs or lower_lows)
+        return bearish_ema or (lower_highs and lower_lows)
 
 
 class M15ZoneEngine:
@@ -211,4 +237,3 @@ def _to_datetime(value: object) -> datetime:
     if timestamp.tzinfo is None:
         timestamp = timestamp.tz_localize("UTC")
     return timestamp.to_pydatetime()
-

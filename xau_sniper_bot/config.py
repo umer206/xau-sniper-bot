@@ -18,6 +18,7 @@ class BotConfig:
     m15_check_minutes: int = 15
     m5_check_minutes: int = 5
     m1_check_seconds: int = 60
+    h1_bias_mode: str = "balanced"
     swing_window: int = 2
     atr_period: int = 14
     zone_atr_padding: float = 0.20

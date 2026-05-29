@@ -10,6 +10,11 @@ Multi-timeframe MT5 scanner for Gold setups:
 
 The bot is dry-run by default. It prints signals to the console and writes JSONL signal records locally.
 
+`h1_bias_mode` controls how selective the H1 direction engine is:
+
+- `balanced`: EMA stack or clean HH/HL / LH/LL structure can define bias.
+- `strict`: EMA stack must agree with recent swing structure.
+
 ## Setup
 
 1. Install dependencies:
