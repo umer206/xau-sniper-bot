@@ -4,14 +4,19 @@ import pandas as pd
 
 from .config import BotConfig
 from .indicators import atr, body_size, lower_wick, upper_wick
-from .models import Direction, SniperTrigger, Zone
+from .models import Direction, SniperTrigger, TargetLevel, Zone
 
 
 class M1SniperScanner:
     def __init__(self, config: BotConfig) -> None:
         self.config = config
 
-    def scan(self, df: pd.DataFrame, zone: Zone, take_profit: float | None) -> SniperTrigger | None:
+    def scan(
+        self,
+        df: pd.DataFrame,
+        zone: Zone,
+        target_levels: list[TargetLevel] | None,
+    ) -> SniperTrigger | None:
         if len(df) < max(40, self.config.m1_sweep_lookback + self.config.m1_bos_lookback + 5):
             return None
 
@@ -26,14 +31,14 @@ class M1SniperScanner:
             return None
 
         if zone.direction == Direction.BUY:
-            return self._scan_buy(frame, zone, take_profit, m1_atr)
-        return self._scan_sell(frame, zone, take_profit, m1_atr)
+            return self._scan_buy(frame, zone, target_levels or [], m1_atr)
+        return self._scan_sell(frame, zone, target_levels or [], m1_atr)
 
     def _scan_buy(
         self,
         frame: pd.DataFrame,
         zone: Zone,
-        take_profit: float | None,
+        target_levels: list[TargetLevel],
         m1_atr: float,
     ) -> SniperTrigger | None:
         sweep = self._find_buy_sweep(frame)
@@ -61,10 +66,14 @@ class M1SniperScanner:
             0.01,
         )
         entry_price = float(last["close"])
-        target = take_profit or entry_price + (
-            (entry_price - stop_loss) * self.config.risk_reward_floor
+        target_1, target_2 = _target_pair(
+            Direction.BUY,
+            entry_price,
+            stop_loss,
+            target_levels,
+            self.config.risk_reward_floor,
         )
-        risk_reward = _risk_reward(Direction.BUY, entry_price, stop_loss, target)
+        risk_reward = _risk_reward(Direction.BUY, entry_price, stop_loss, target_1.price)
         if risk_reward < self.config.risk_reward_floor:
             return None
 
@@ -74,7 +83,8 @@ class M1SniperScanner:
             timestamp=_to_datetime(last["time"]),
             entry_price=entry_price,
             stop_loss=stop_loss,
-            take_profit=target,
+            target_1=target_1,
+            target_2=target_2,
             swept_level=swept_level,
             bos_level=bos_level,
             atr=m1_atr,
@@ -91,7 +101,7 @@ class M1SniperScanner:
         self,
         frame: pd.DataFrame,
         zone: Zone,
-        take_profit: float | None,
+        target_levels: list[TargetLevel],
         m1_atr: float,
     ) -> SniperTrigger | None:
         sweep = self._find_sell_sweep(frame)
@@ -119,10 +129,14 @@ class M1SniperScanner:
             0.01,
         )
         entry_price = float(last["close"])
-        target = take_profit or entry_price - (
-            (stop_loss - entry_price) * self.config.risk_reward_floor
+        target_1, target_2 = _target_pair(
+            Direction.SELL,
+            entry_price,
+            stop_loss,
+            target_levels,
+            self.config.risk_reward_floor,
         )
-        risk_reward = _risk_reward(Direction.SELL, entry_price, stop_loss, target)
+        risk_reward = _risk_reward(Direction.SELL, entry_price, stop_loss, target_1.price)
         if risk_reward < self.config.risk_reward_floor:
             return None
 
@@ -132,7 +146,8 @@ class M1SniperScanner:
             timestamp=_to_datetime(last["time"]),
             entry_price=entry_price,
             stop_loss=stop_loss,
-            take_profit=target,
+            target_1=target_1,
+            target_2=target_2,
             swept_level=swept_level,
             bos_level=bos_level,
             atr=m1_atr,
@@ -205,6 +220,42 @@ def _risk_reward(direction: Direction, entry: float, stop: float, target: float)
     if risk <= 0:
         return 0.0
     return reward / risk
+
+
+def _target_pair(
+    direction: Direction,
+    entry: float,
+    stop: float,
+    target_levels: list[TargetLevel],
+    risk_reward_floor: float,
+) -> tuple[TargetLevel, TargetLevel]:
+    risk = abs(entry - stop)
+    if direction == Direction.BUY:
+        minimum_t1 = entry + (risk * risk_reward_floor)
+        projected_t2 = entry + (risk * risk_reward_floor * 2)
+    else:
+        minimum_t1 = entry - (risk * risk_reward_floor)
+        projected_t2 = entry - (risk * risk_reward_floor * 2)
+
+    target_1 = (
+        target_levels[0]
+        if target_levels
+        else TargetLevel(
+            price=minimum_t1,
+            label="minimum configured risk/reward projection",
+            timeframe="M1",
+        )
+    )
+    target_2 = (
+        target_levels[1]
+        if len(target_levels) > 1
+        else TargetLevel(
+            price=projected_t2,
+            label="projected extension after target 1",
+            timeframe="M1",
+        )
+    )
+    return target_1, target_2
 
 
 def _recent_zone_touch(df: pd.DataFrame, zone: Zone) -> bool:

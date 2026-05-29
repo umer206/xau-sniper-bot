@@ -60,18 +60,31 @@ class ConfirmationSnapshot:
 
 
 @dataclass(frozen=True)
+class TargetLevel:
+    price: float
+    label: str
+    timeframe: str
+    anchor_time: datetime | None = None
+
+
+@dataclass(frozen=True)
 class SniperTrigger:
     symbol: str
     direction: Direction
     timestamp: datetime
     entry_price: float
     stop_loss: float
-    take_profit: float
+    target_1: TargetLevel
+    target_2: TargetLevel
     swept_level: float
     bos_level: float
     atr: float
     reason: list[str]
     risk_reward: float
+
+    @property
+    def take_profit(self) -> float:
+        return self.target_1.price
 
 
 @dataclass(frozen=True)

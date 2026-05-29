@@ -82,13 +82,13 @@ class XauSniperBot:
             confirmation = self.confirmation_engine.confirm(self.state.m5, zone)
             if not confirmation.confirmed:
                 continue
-            target = self.zone_engine.nearest_target(
+            targets = self.zone_engine.target_levels(
                 self.state.m15,
                 self.state.h1,
                 zone.direction,
                 float(m1.iloc[-1]["close"]),
             )
-            trigger = self.scanner.scan(m1, zone, target)
+            trigger = self.scanner.scan(m1, zone, targets)
             if trigger is None:
                 continue
 

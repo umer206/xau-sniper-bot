@@ -6,7 +6,7 @@ import pandas as pd
 
 from .config import BotConfig
 from .indicators import atr, ema
-from .models import Bias, BiasSnapshot, Direction, Zone
+from .models import Bias, BiasSnapshot, Direction, TargetLevel, Zone
 
 
 def detect_swing_highs(df: pd.DataFrame, window: int) -> pd.Series:
@@ -134,18 +134,59 @@ class M15ZoneEngine:
         direction: Direction,
         entry_price: float,
     ) -> float | None:
-        levels: list[float] = []
-        for df in (m15, h1):
-            highs = df[detect_swing_highs(df, self.config.swing_window)]["high"].tail(12)
-            lows = df[detect_swing_lows(df, self.config.swing_window)]["low"].tail(12)
-            if direction == Direction.BUY:
-                levels.extend(float(level) for level in highs if float(level) > entry_price)
-            else:
-                levels.extend(float(level) for level in lows if float(level) < entry_price)
-
+        levels = self.target_levels(m15, h1, direction, entry_price)
         if not levels:
             return None
-        return min(levels) if direction == Direction.BUY else max(levels)
+        return levels[0].price
+
+    def target_levels(
+        self,
+        m15: pd.DataFrame,
+        h1: pd.DataFrame,
+        direction: Direction,
+        entry_price: float,
+    ) -> list[TargetLevel]:
+        targets: list[TargetLevel] = []
+        for timeframe, df in (("M15", m15), ("H1", h1)):
+            swing_highs = df[detect_swing_highs(df, self.config.swing_window)].tail(12)
+            swing_lows = df[detect_swing_lows(df, self.config.swing_window)].tail(12)
+            rows = swing_highs if direction == Direction.BUY else swing_lows
+            for _, row in rows.iterrows():
+                price = float(row["high"] if direction == Direction.BUY else row["low"])
+                if direction == Direction.BUY and price <= entry_price:
+                    continue
+                if direction == Direction.SELL and price >= entry_price:
+                    continue
+
+                level_name = "high liquidity" if direction == Direction.BUY else "low liquidity"
+                targets.append(
+                    TargetLevel(
+                        price=price,
+                        label=f"{timeframe} swing {level_name}",
+                        timeframe=timeframe,
+                        anchor_time=_to_datetime(row["time"]),
+                    )
+                )
+
+        targets = _dedupe_targets(targets)
+        targets.sort(
+            key=lambda target: abs(target.price - entry_price),
+        )
+        if targets:
+            targets[0] = TargetLevel(
+                price=targets[0].price,
+                label=f"nearest {targets[0].label}",
+                timeframe=targets[0].timeframe,
+                anchor_time=targets[0].anchor_time,
+            )
+        if len(targets) > 1:
+            targets[1] = TargetLevel(
+                price=targets[1].price,
+                label=f"extended {targets[1].label}",
+                timeframe=targets[1].timeframe,
+                anchor_time=targets[1].anchor_time,
+            )
+        return targets[:2]
 
     def _find_demand_zones(self, frame: pd.DataFrame) -> list[Zone]:
         zones: list[Zone] = []
@@ -230,6 +271,18 @@ def _require_bars(df: pd.DataFrame, minimum: int, timeframe: str) -> None:
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _dedupe_targets(targets: list[TargetLevel]) -> list[TargetLevel]:
+    seen: set[float] = set()
+    deduped: list[TargetLevel] = []
+    for target in targets:
+        key = round(target.price, 2)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(target)
+    return deduped
 
 
 def _to_datetime(value: object) -> datetime:
