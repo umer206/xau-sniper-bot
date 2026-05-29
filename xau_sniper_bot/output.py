@@ -125,7 +125,7 @@ def format_no_trade_setup(
     zones: list[Zone],
     external_analysis: ExternalAnalysis | None,
 ) -> str:
-    zone_text = _zone_wait_text(zones, current_price)
+    zone_text = _zone_wait_text(zones, current_price, bias)
     bias_text = bias.bias.value if bias else "unknown"
     price_text = f"{current_price:.2f}" if current_price is not None else "n/a"
     return "\n".join(
@@ -187,14 +187,62 @@ def _confluence(signal: Signal) -> str:
     return ", ".join(pieces) + "."
 
 
-def _zone_wait_text(zones: list[Zone], current_price: float | None) -> str:
+def _zone_wait_text(
+    zones: list[Zone],
+    current_price: float | None,
+    bias: BiasSnapshot | None,
+) -> str:
     if not zones:
         return "No active setup zone is available."
-    zone = _nearest_zone(zones, current_price)
-    direction = "buy" if zone.direction == Direction.BUY else "sell"
-    if current_price is not None and zone.low <= current_price <= zone.high:
-        return f"Price is inside the {direction} zone {zone.low:.2f}-{zone.high:.2f}."
-    return f"Waiting for price to enter the {direction} zone {zone.low:.2f}-{zone.high:.2f}."
+
+    aligned_direction = _direction_for_bias(bias)
+    aligned_zones = (
+        [zone for zone in zones if zone.direction == aligned_direction]
+        if aligned_direction
+        else zones
+    )
+    opposite_zones = (
+        [zone for zone in zones if zone.direction != aligned_direction]
+        if aligned_direction
+        else []
+    )
+
+    parts: list[str] = []
+    if aligned_zones:
+        zone = _nearest_zone(aligned_zones, current_price)
+        direction = "buy" if zone.direction == Direction.BUY else "sell"
+        if current_price is not None and zone.low <= current_price <= zone.high:
+            parts.append(
+                f"Aligned plan: price is inside the {direction} zone "
+                f"{zone.low:.2f}-{zone.high:.2f}."
+            )
+        else:
+            parts.append(
+                f"Aligned plan: waiting for price to enter the {direction} zone "
+                f"{zone.low:.2f}-{zone.high:.2f}."
+            )
+    else:
+        parts.append("No setup zone aligns with the active H1 bias.")
+
+    if opposite_zones:
+        opposite = _nearest_zone(opposite_zones, current_price)
+        opposite_direction = "buy" if opposite.direction == Direction.BUY else "sell"
+        parts.append(
+            f"Opposite {opposite_direction} zone exists at "
+            f"{opposite.low:.2f}-{opposite.high:.2f}, but it needs H1 reversal "
+            "or explicit reversal confirmation."
+        )
+    return " ".join(parts)
+
+
+def _direction_for_bias(bias: BiasSnapshot | None) -> Direction | None:
+    if bias is None:
+        return None
+    if bias.bias.value == "bullish":
+        return Direction.BUY
+    if bias.bias.value == "bearish":
+        return Direction.SELL
+    return None
 
 
 def _nearest_zone(zones: list[Zone], current_price: float | None) -> Zone:

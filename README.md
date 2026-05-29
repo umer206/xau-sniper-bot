@@ -3,7 +3,7 @@
 Multi-timeframe MT5 scanner for Gold setups:
 
 - H1: directional bias
-- M15: setup zone
+- M15: demand and supply zone map
 - M5: confirmation after zone interaction
 - M1: sniper trigger timing
 - OpenAI: final validation only after zone interaction, M5 confirmation, and a near-valid M1 trigger
@@ -29,6 +29,10 @@ R:R       : 1:1.5
 Second AI : LONG (ALIGNED) | Bull 4 / Bear 1.
 Confluence: Bullish H1 bias, M15 demand/support zone, M5 confirmation, M1 liquidity sweep, rejection candle, CHOCH/BOS, displacement candle.
 ```
+
+When there is no entry, the bot still prints a setup-style waiting block. It
+shows the bias-aligned zone first and any opposite zone as context. Opposite
+zones are not traded unless H1 bias flips or reversal logic is explicitly added.
 
 ## Setup
 

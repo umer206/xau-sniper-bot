@@ -187,7 +187,7 @@ class XauSniperBot:
             return
         m15 = self.mt5.rates("M15", self.config.m15_bars)
         self.state.m15 = m15
-        self.state.zones = self.zone_engine.find_zones(m15, self.state.bias)
+        self.state.zones = self.zone_engine.find_all_zones(m15)
         self.state.m15_updated_at = now
         if self.state.zones:
             zones = ", ".join(

@@ -122,7 +122,7 @@ class OutputFormatterTests(TestCase):
 
         self.assertIn("Direction : NO TRADE", text)
         self.assertIn("Current XAUUSD price is 4563.04", text)
-        self.assertIn("Waiting for price to enter the buy zone 4508.19-4516.57", text)
+        self.assertIn("Aligned plan: waiting for price to enter the buy zone", text)
 
 
 def _dt(value: str) -> datetime:

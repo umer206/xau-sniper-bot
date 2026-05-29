@@ -116,16 +116,27 @@ class M15ZoneEngine:
         if bias.bias == Bias.NEUTRAL:
             return []
 
+        direction = Direction.BUY if bias.bias == Bias.BULLISH else Direction.SELL
+        return [zone for zone in self.find_all_zones(df) if zone.direction == direction][:3]
+
+    def find_all_zones(self, df: pd.DataFrame) -> list[Zone]:
+        _require_bars(df, 80, "M15")
         frame = df.copy()
         frame["atr"] = atr(frame, self.config.atr_period)
-        zones: list[Zone] = []
-        if bias.bias == Bias.BULLISH:
-            zones.extend(self._find_demand_zones(frame))
-        elif bias.bias == Bias.BEARISH:
-            zones.extend(self._find_supply_zones(frame))
 
+        buy_zones = sorted(
+            self._find_demand_zones(frame),
+            key=lambda zone: zone.strength,
+            reverse=True,
+        )[:3]
+        sell_zones = sorted(
+            self._find_supply_zones(frame),
+            key=lambda zone: zone.strength,
+            reverse=True,
+        )[:3]
+        zones = buy_zones + sell_zones
         zones.sort(key=lambda zone: zone.strength, reverse=True)
-        return zones[:3]
+        return zones
 
     def nearest_target(
         self,
