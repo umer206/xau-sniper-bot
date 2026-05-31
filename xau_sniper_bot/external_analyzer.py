@@ -105,4 +105,3 @@ def _details_from_smc(smc_10m: dict, smc_1m: dict) -> list[str]:
             for value in smc.get(key, [])[-2:]:
                 details.append(f"{label} {name}: {value}")
     return details[-8:]
-

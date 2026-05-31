@@ -64,6 +64,16 @@ Run one scan cycle:
 python -m xau_sniper_bot.bot --config config.json --once
 ```
 
+PowerShell helpers are available too:
+
+```powershell
+.\scripts\run-once.ps1
+.\scripts\start-bot-dry-run.ps1
+.\scripts\watch-bot-log.ps1
+```
+
+For access from office laptops or iOS, see [REMOTE_ACCESS.md](REMOTE_ACCESS.md).
+
 If the external analyzer is enabled, make sure `groq` is installed too because
 `C:\2026\CodexAlyzer\main.py` imports it:
 

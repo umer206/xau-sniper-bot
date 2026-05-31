@@ -49,6 +49,8 @@ class BotConfig:
     openai_min_confidence: float = 0.70
     openai_cooldown_minutes: int = 10
     output_jsonl_path: str = "signals/xau_sniper_signals.jsonl"
+    log_to_file: bool = True
+    log_file_path: str = "logs/bot.log"
     mt5_chart_bridge_enabled: bool = False
     mt5_chart_bridge_path: str = ""
     dry_run: bool = True

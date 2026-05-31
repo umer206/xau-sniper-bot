@@ -39,6 +39,8 @@
   "openai_min_confidence": 0.70,
   "openai_cooldown_minutes": 10,
   "output_jsonl_path": "signals/xau_sniper_signals.jsonl",
+  "log_to_file": true,
+  "log_file_path": "logs/bot.log",
   "mt5_chart_bridge_enabled": false,
   "mt5_chart_bridge_path": "",
   "dry_run": true

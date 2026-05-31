@@ -11,6 +11,7 @@ from .config import BotConfig, load_config
 from .confirmation import M5ConfirmationEngine
 from .external_analyzer import ExternalAnalyzer
 from .execution import MT5TradeExecutor
+from .logging_setup import tee_console_to_log
 from .models import Bias, BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
 from .mt5_client import MT5Client
 from .openai_validator import OpenAIValidator
@@ -268,14 +269,15 @@ def main() -> None:
         )
 
     bot = XauSniperBot(config)
-    if args.once:
-        bot.start()
-        try:
-            bot.run_once()
-        finally:
-            bot.stop()
-    else:
-        bot.run_forever()
+    with tee_console_to_log(config):
+        if args.once:
+            bot.start()
+            try:
+                bot.run_once()
+            finally:
+                bot.stop()
+        else:
+            bot.run_forever()
 
 
 if __name__ == "__main__":
