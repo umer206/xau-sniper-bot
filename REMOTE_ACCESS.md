@@ -217,6 +217,7 @@ Default stale threshold is 180 seconds. Override it if needed:
 
 - Run the bot on one machine only: the home MT5 laptop.
 - Other devices should connect to that machine, not run separate bot copies.
+- Trade locking writes to `runtime\trade_lock.json` to block duplicate setup execution.
 - Keep `--live` disabled until you deliberately want execution.
 - Use `.\scripts\start-bot-dry-run.ps1` for monitoring.
 - Use `.\scripts\start-bot-live.ps1` only when you accept real MT5 execution.

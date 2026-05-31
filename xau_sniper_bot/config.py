@@ -44,6 +44,9 @@ class BotConfig:
     trade_comment: str = "xau-sniper-bot"
     trade_allow_existing_position: bool = False
     trade_filling_mode: str = "auto"
+    trade_lock_enabled: bool = True
+    trade_lock_path: str = "runtime/trade_lock.json"
+    trade_lock_ttl_minutes: int = 180
     openai_enabled: bool = False
     openai_model: str = "gpt-5.2"
     openai_min_confidence: float = 0.70

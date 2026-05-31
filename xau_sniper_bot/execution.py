@@ -5,12 +5,14 @@ from typing import Any
 from .config import BotConfig
 from .models import Direction, ExecutionResult, Signal
 from .mt5_client import MT5Client
+from .trade_lock import TradeLock
 
 
 class MT5TradeExecutor:
     def __init__(self, config: BotConfig, mt5_client: MT5Client) -> None:
         self.config = config
         self.mt5_client = mt5_client
+        self.trade_lock = TradeLock(config)
 
     def execute(self, signal: Signal) -> ExecutionResult:
         if self.config.dry_run:
@@ -24,6 +26,16 @@ class MT5TradeExecutor:
             return ExecutionResult(
                 status="disabled",
                 message="trade_execution_enabled is false; MT5 order was not sent.",
+            )
+
+        setup_id = self.trade_lock.setup_id(signal)
+        locked, lock = self.trade_lock.is_locked(setup_id)
+        if locked:
+            created_at = lock.get("created_at", "unknown") if lock else "unknown"
+            return ExecutionResult(
+                status="locked",
+                message=f"Duplicate setup blocked by trade lock {setup_id} from {created_at}.",
+                target_used=self._target_used(),
             )
 
         mt5 = self.mt5_client.mt5
@@ -111,7 +123,7 @@ class MT5TradeExecutor:
                 target_used=self._target_used(),
             )
 
-        return ExecutionResult(
+        execution = ExecutionResult(
             status="placed",
             message="MT5 order placed successfully.",
             order_id=int(getattr(result, "order", 0) or 0),
@@ -120,6 +132,8 @@ class MT5TradeExecutor:
             volume=volume,
             target_used=self._target_used(),
         )
+        self.trade_lock.record(setup_id, signal, execution.status)
+        return execution
 
     def _send_with_filling_fallback(self, mt5: Any, request: dict[str, Any]) -> Any:
         modes = self._filling_modes(mt5)
@@ -159,4 +173,3 @@ def _normalize_volume(volume: float, minimum: float, maximum: float, step: float
     steps = round((volume - minimum) / step)
     normalized = minimum + (steps * step)
     return round(max(minimum, min(normalized, maximum)), 2)
-

@@ -32,6 +32,17 @@ class ExecutionTests(TestCase):
         self.assertEqual(result.status, "dry_run")
         self.assertIn("not sent", result.message)
 
+    def test_disabled_execution_does_not_lock_trade(self) -> None:
+        mt5_client = SimpleNamespace(mt5=SimpleNamespace())
+        executor = MT5TradeExecutor(
+            BotConfig(dry_run=False, trade_execution_enabled=False),
+            mt5_client,
+        )
+
+        result = executor.execute(_signal())
+
+        self.assertEqual(result.status, "disabled")
+
 
 def _signal() -> Signal:
     now = datetime.now(timezone.utc)
@@ -56,4 +67,3 @@ def _signal() -> Signal:
         ),
         validation=ValidationResult("approve", 0.7, [], [], "openai_disabled"),
     )
-
