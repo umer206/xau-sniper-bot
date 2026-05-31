@@ -51,6 +51,7 @@
   "pushover_sound": "",
   "pushover_alert_signals": true,
   "pushover_alert_no_trade": false,
+  "pushover_alert_scan_summary": true,
   "pushover_alert_status": true,
   "mt5_chart_bridge_enabled": false,
   "mt5_chart_bridge_path": "",

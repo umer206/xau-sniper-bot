@@ -8,8 +8,8 @@ import urllib.request
 from dataclasses import dataclass
 
 from .config import BotConfig
-from .models import Direction, Signal
-from .output import format_trade_setup
+from .models import BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
+from .output import format_no_trade_setup, format_trade_setup
 
 
 PUSHOVER_API_URL = "https://api.pushover.net/1/messages.json"
@@ -60,6 +60,28 @@ class PushoverNotifier:
         if not self.config.pushover_alert_no_trade:
             return NotificationResult(False, "No-trade alerts disabled")
         return self.send(title, _truncate(message), priority=-1)
+
+    def notify_scan_summary(
+        self,
+        *,
+        symbol: str,
+        reason: str,
+        current_price: float | None,
+        bias: BiasSnapshot | None,
+        zones: list[Zone],
+        external_analysis: ExternalAnalysis | None,
+    ) -> NotificationResult:
+        if not self.config.pushover_alert_scan_summary:
+            return NotificationResult(False, "Scan summary alerts disabled")
+        message = format_no_trade_setup(
+            symbol=symbol,
+            reason=reason,
+            current_price=current_price,
+            bias=bias,
+            zones=zones,
+            external_analysis=external_analysis,
+        )
+        return self.send(f"{symbol} scan summary", _truncate(message), priority=-1)
 
     def notify_status(
         self,
@@ -136,4 +158,3 @@ def _truncate(message: str) -> str:
         return message
     suffix = "\n...truncated"
     return message[: PUSHOVER_MESSAGE_LIMIT - len(suffix)] + suffix
-

@@ -56,7 +56,14 @@ class XauSniperBot:
         chart_path = self.mt5.default_chart_bridge_path()
         self.output = OutputWriter(self.config, chart_path)
         self.status.running("Connected to MT5")
-        self._notify_status("XAU bot started", "Connected to MT5 and watching market.")
+        self._notify_status(
+            "XAU bot started",
+            (
+                f"Connected to MT5 and watching {self.config.symbol}.\n"
+                f"Mode: {'DRY-RUN' if self.config.dry_run else 'LIVE'}\n"
+                "Full scan/setup summaries will follow after analysis."
+            ),
+        )
         print(f"Connected to MT5. Watching {self.config.symbol}. Dry run: {self.config.dry_run}")
 
     def stop(self) -> None:
@@ -252,7 +259,7 @@ class XauSniperBot:
             zones=zones,
             external_analysis=external_analysis,
         )
-        self._notify_no_trade(reason)
+        self._notify_scan_summary(reason, current_price, zones, external_analysis)
 
     def _notify_signal(self, signal: Signal) -> None:
         result = self.notifier.notify_signal(signal)
@@ -271,6 +278,24 @@ class XauSniperBot:
         )
         if self.notifier.enabled and self.config.pushover_alert_no_trade:
             print(f"Pushover no-trade alert: {result.message}")
+
+    def _notify_scan_summary(
+        self,
+        reason: str,
+        current_price: float | None,
+        zones: list[Zone],
+        external_analysis: ExternalAnalysis | None,
+    ) -> None:
+        result = self.notifier.notify_scan_summary(
+            symbol=self.config.symbol,
+            reason=reason,
+            current_price=current_price,
+            bias=self.state.bias,
+            zones=zones,
+            external_analysis=external_analysis,
+        )
+        if self.notifier.enabled and self.config.pushover_alert_scan_summary:
+            print(f"Pushover scan summary alert: {result.message}")
 
 
 def _due(last_run: datetime | None, now: datetime, minutes: int) -> bool:

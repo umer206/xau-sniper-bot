@@ -61,6 +61,7 @@ class BotConfig:
     pushover_sound: str = ""
     pushover_alert_signals: bool = True
     pushover_alert_no_trade: bool = False
+    pushover_alert_scan_summary: bool = True
     pushover_alert_status: bool = True
     mt5_chart_bridge_enabled: bool = False
     mt5_chart_bridge_path: str = ""
