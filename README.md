@@ -70,6 +70,7 @@ PowerShell helpers are available too:
 .\scripts\run-once.ps1
 .\scripts\start-bot-dry-run.ps1
 .\scripts\watch-bot-log.ps1
+.\scripts\watch-bot-status.ps1
 ```
 
 For access from office laptops or iOS, see [REMOTE_ACCESS.md](REMOTE_ACCESS.md).

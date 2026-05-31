@@ -51,6 +51,8 @@ class BotConfig:
     output_jsonl_path: str = "signals/xau_sniper_signals.jsonl"
     log_to_file: bool = True
     log_file_path: str = "logs/bot.log"
+    status_file_path: str = "runtime/status.json"
+    status_stale_seconds: int = 180
     mt5_chart_bridge_enabled: bool = False
     mt5_chart_bridge_path: str = ""
     dry_run: bool = True

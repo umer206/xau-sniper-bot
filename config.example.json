@@ -41,6 +41,8 @@
   "output_jsonl_path": "signals/xau_sniper_signals.jsonl",
   "log_to_file": true,
   "log_file_path": "logs/bot.log",
+  "status_file_path": "runtime/status.json",
+  "status_stale_seconds": 180,
   "mt5_chart_bridge_enabled": false,
   "mt5_chart_bridge_path": "",
   "dry_run": true

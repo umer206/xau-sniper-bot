@@ -4,3 +4,4 @@ __pycache__/
 config.json
 signals/
 logs/
+runtime/

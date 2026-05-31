@@ -17,6 +17,7 @@ from .mt5_client import MT5Client
 from .openai_validator import OpenAIValidator
 from .output import OutputWriter
 from .sniper import M1SniperScanner
+from .status import StatusWriter
 from .structure import H1BiasEngine, M15ZoneEngine
 
 
@@ -43,17 +44,21 @@ class XauSniperBot:
         self.trade_executor = MT5TradeExecutor(config, self.mt5)
         self.scanner = M1SniperScanner(config)
         self.validator = OpenAIValidator(config)
+        self.status = StatusWriter(config)
         self.state = MarketState()
         self.output: OutputWriter | None = None
 
     def start(self) -> None:
+        self.status.running("Starting bot and connecting to MT5")
         self.mt5.connect()
         chart_path = self.mt5.default_chart_bridge_path()
         self.output = OutputWriter(self.config, chart_path)
+        self.status.running("Connected to MT5")
         print(f"Connected to MT5. Watching {self.config.symbol}. Dry run: {self.config.dry_run}")
 
     def stop(self) -> None:
         self.mt5.shutdown()
+        self.status.stopped("Bot stopped gracefully")
 
     def run_forever(self) -> None:
         self.start()
@@ -66,6 +71,7 @@ class XauSniperBot:
 
     def run_once(self) -> None:
         now = datetime.now(timezone.utc)
+        self.status.running("Scanning market")
         self._refresh_h1_if_due(now)
         self._refresh_m15_if_due(now)
         self._refresh_m5_if_due(now)
@@ -76,6 +82,7 @@ class XauSniperBot:
                 current_price=self.state.bias.last_close if self.state.bias else None,
                 zones=[],
             )
+            self.status.running("No directional H1 bias yet")
             return
         if not self.state.zones:
             self._write_no_trade(
@@ -83,6 +90,7 @@ class XauSniperBot:
                 current_price=self.state.bias.last_close,
                 zones=[],
             )
+            self.status.running("No M15 zone available")
             return
 
         m1 = self.mt5.rates("M1", self.config.m1_bars)
@@ -97,6 +105,7 @@ class XauSniperBot:
                 current_price=current_price,
                 zones=self.state.zones,
             )
+            self.status.running("No M15 setup zone aligns with H1 bias")
             return
 
         wait_reasons: list[str] = []
@@ -145,6 +154,11 @@ class XauSniperBot:
                 execution = self.trade_executor.execute(signal)
                 signal = replace(signal, execution=execution)
                 self.output.write_signal(signal)
+                self.status.running(
+                    "Signal emitted",
+                    direction=trigger.direction.value,
+                    execution_status=execution.status,
+                )
             else:
                 external_note = ""
                 if external_analysis is not None:
@@ -164,6 +178,7 @@ class XauSniperBot:
                     zones=matching_zones,
                     external_analysis=external_analysis,
                 )
+                self.status.running("Candidate setup rejected")
             return
 
         reason = wait_reasons[0] if wait_reasons else "No complete entry trigger yet."
@@ -172,6 +187,7 @@ class XauSniperBot:
             current_price=current_price,
             zones=matching_zones,
         )
+        self.status.running("Waiting for complete entry trigger", reason=reason)
 
     def _refresh_h1_if_due(self, now: datetime) -> None:
         if not _due(self.state.h1_updated_at, now, self.config.h1_check_minutes):
@@ -270,14 +286,18 @@ def main() -> None:
 
     bot = XauSniperBot(config)
     with tee_console_to_log(config):
-        if args.once:
-            bot.start()
-            try:
-                bot.run_once()
-            finally:
-                bot.stop()
-        else:
-            bot.run_forever()
+        try:
+            if args.once:
+                bot.start()
+                try:
+                    bot.run_once()
+                finally:
+                    bot.stop()
+            else:
+                bot.run_forever()
+        except Exception as exc:
+            bot.status.error(f"Bot crashed: {exc}")
+            raise
 
 
 if __name__ == "__main__":

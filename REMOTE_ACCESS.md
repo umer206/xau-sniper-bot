@@ -86,6 +86,7 @@ Useful terminal commands:
 
 ```powershell
 .\scripts\watch-bot-log.ps1
+.\scripts\watch-bot-status.ps1
 .\scripts\run-once.ps1
 .\scripts\start-bot-dry-run.ps1
 .\scripts\start-bot-live.ps1
@@ -114,6 +115,7 @@ Sign in with the same account and connect to `xau-mt5-home`.
 Best iOS commands:
 
 ```powershell
+.\scripts\watch-bot-status.ps1
 .\scripts\watch-bot-log.ps1
 .\scripts\run-once.ps1
 ```
@@ -136,6 +138,33 @@ Any device can watch the same live feed:
 ```
 
 This is more reliable than trying to mirror one interactive PowerShell window.
+
+## Bot Status Heartbeat
+
+Every bot run updates:
+
+```text
+runtime\status.json
+```
+
+Watch it from any remote device:
+
+```powershell
+.\scripts\watch-bot-status.ps1
+```
+
+Meanings:
+
+- `RUNNING`: the bot is alive and updating heartbeat.
+- `STOPPED`: the bot stopped gracefully.
+- `ERROR`: the bot crashed and wrote the error.
+- `OFFLINE`: status was `RUNNING`, but the heartbeat is stale.
+
+Default stale threshold is 180 seconds. Override it if needed:
+
+```powershell
+.\scripts\watch-bot-status.ps1 -StaleSeconds 90
+```
 
 ## Safety Rules
 
@@ -179,6 +208,12 @@ Watch the bot log:
 .\scripts\watch-bot-log.ps1
 ```
 
+Watch bot status:
+
+```powershell
+.\scripts\watch-bot-status.ps1
+```
+
 Run one safe scan:
 
 ```powershell
@@ -191,4 +226,3 @@ If MT5 data fails, make sure:
 - The account is logged in.
 - `XAUUSD` is visible in Market Watch.
 - The symbol name in `config.json` matches your broker.
-
