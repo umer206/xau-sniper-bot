@@ -163,11 +163,12 @@ Default alerts:
 
 - Valid LONG/SHORT setup
 - Execution status
+- One scan-summary setup block after each scan
 - Bot started
 - Bot stopped
 - Bot crashed
 
-No-trade alerts stay off unless `pushover_alert_no_trade` is set to `true`.
+Extra no-trade alerts stay off unless `pushover_alert_no_trade` is set to `true`.
 
 ## Shared Terminal Feed
 

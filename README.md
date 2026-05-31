@@ -104,7 +104,8 @@ PUSHOVER_USER_KEY=your_user_key
 ```
 
 By default, the bot alerts for trade setups and bot start/stop/crash events.
-No-trade alerts are off by default to avoid notification spam.
+It also sends one scan-summary setup block after each scan. Repeated no-trade
+spam remains off unless `pushover_alert_no_trade` is set to `true`.
 
 If the external analyzer is enabled, make sure `groq` is installed too because
 `C:\2026\CodexAlyzer\main.py` imports it:

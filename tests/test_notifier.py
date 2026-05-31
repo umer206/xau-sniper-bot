@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest import TestCase
 from unittest.mock import patch
 
 from xau_sniper_bot.config import BotConfig
 from xau_sniper_bot.models import Bias, BiasSnapshot, Direction, Zone
 from xau_sniper_bot.notifier import PushoverNotifier, _truncate
-from datetime import datetime, timezone
 
 
 class PushoverNotifierTests(TestCase):
