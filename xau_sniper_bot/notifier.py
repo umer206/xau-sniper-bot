@@ -82,6 +82,9 @@ class PushoverNotifier:
             zones=zones,
             external_analysis=external_analysis,
             market_context=market_context,
+            zone_stale_after_hours=self.config.zone_stale_after_hours,
+            zone_expire_after_hours=self.config.zone_expire_after_hours,
+            zone_near_threshold_points=self.config.zone_near_threshold_points,
         )
         return self.send(f"{symbol} scan summary", _truncate(message), priority=-1)
 

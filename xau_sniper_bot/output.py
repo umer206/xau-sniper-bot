@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -50,6 +50,9 @@ class OutputWriter:
             zones=zones or [],
             external_analysis=external_analysis,
             market_context=market_context,
+            zone_stale_after_hours=self.config.zone_stale_after_hours,
+            zone_expire_after_hours=self.config.zone_expire_after_hours,
+            zone_near_threshold_points=self.config.zone_near_threshold_points,
         )
         payload = {
             "type": "no_trade",
@@ -140,7 +143,11 @@ def format_no_trade_setup(
     zones: list[Zone],
     external_analysis: ExternalAnalysis | None,
     market_context: MarketContext | None = None,
+    zone_stale_after_hours: float = 12.0,
+    zone_expire_after_hours: float = 36.0,
+    zone_near_threshold_points: float = 5.0,
 ) -> str:
+    now = datetime.now(timezone.utc)
     zone_text = _zone_wait_text(zones, current_price, bias)
     bias_text = bias.bias.value if bias else "unknown"
     price_text = f"{current_price:.2f}" if current_price is not None else "n/a"
@@ -156,6 +163,15 @@ def format_no_trade_setup(
             _external_no_trade_line(external_analysis),
             _market_volume_line(market_context),
             _market_liquidity_line(market_context),
+            _zone_context_line(
+                zones,
+                current_price,
+                bias,
+                now,
+                zone_stale_after_hours,
+                zone_expire_after_hours,
+                zone_near_threshold_points,
+            ),
             f"Confluence: H1 bias is {bias_text}. {reason}",
         ]
     )
@@ -269,6 +285,97 @@ def _nearest_zone(zones: list[Zone], current_price: float | None) -> Zone:
     if current_price is None:
         return zones[0]
     return min(zones, key=lambda zone: abs(zone.midpoint - current_price))
+
+
+def _zone_context_line(
+    zones: list[Zone],
+    current_price: float | None,
+    bias: BiasSnapshot | None,
+    now: datetime,
+    stale_after_hours: float,
+    expire_after_hours: float,
+    near_threshold_points: float,
+) -> str:
+    zone = _nearest_aligned_zone(zones, current_price, bias)
+    if zone is None:
+        return "Zone      : No active aligned zone."
+
+    direction = "buy" if zone.direction == Direction.BUY else "sell"
+    distance_text = _distance_text(zone, current_price, near_threshold_points)
+    age_hours = _zone_age_hours(zone, now)
+    age_status = _age_status(age_hours, stale_after_hours, expire_after_hours)
+    return (
+        f"Zone      : nearest aligned {direction} zone "
+        f"{zone.low:.2f}-{zone.high:.2f}; {distance_text}; "
+        f"age {_age_label(age_hours)} ({age_status})."
+    )
+
+
+def _nearest_aligned_zone(
+    zones: list[Zone],
+    current_price: float | None,
+    bias: BiasSnapshot | None,
+) -> Zone | None:
+    if not zones:
+        return None
+    aligned_direction = _direction_for_bias(bias)
+    aligned_zones = (
+        [zone for zone in zones if zone.direction == aligned_direction]
+        if aligned_direction
+        else zones
+    )
+    if not aligned_zones:
+        return None
+    return _nearest_zone(aligned_zones, current_price)
+
+
+def _distance_text(
+    zone: Zone,
+    current_price: float | None,
+    near_threshold_points: float,
+) -> str:
+    if current_price is None:
+        return "distance unknown"
+    if zone.low <= current_price <= zone.high:
+        return "price is inside zone"
+    if current_price > zone.high:
+        distance = current_price - zone.high
+        position = "above it"
+    else:
+        distance = zone.low - current_price
+        position = "below it"
+    label = "near" if distance <= near_threshold_points else "far"
+    return f"price is {distance:.2f} points {position} ({label})"
+
+
+def _zone_age_hours(zone: Zone, now: datetime) -> float:
+    anchor = zone.anchor_time
+    if anchor.tzinfo is None:
+        anchor = anchor.replace(tzinfo=timezone.utc)
+    return max((now - anchor.astimezone(timezone.utc)).total_seconds() / 3600.0, 0.0)
+
+
+def _age_status(
+    age_hours: float,
+    stale_after_hours: float,
+    expire_after_hours: float,
+) -> str:
+    if expire_after_hours > 0 and age_hours >= expire_after_hours:
+        return "expired"
+    if stale_after_hours > 0 and age_hours >= stale_after_hours:
+        return "stale"
+    return "fresh"
+
+
+def _age_label(age_hours: float) -> str:
+    total_minutes = int(age_hours * 60)
+    days, remainder = divmod(total_minutes, 24 * 60)
+    hours, minutes = divmod(remainder, 60)
+    if days:
+        return f"{days}d {hours}h"
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
 
 
 def _external_line(signal: Signal) -> str:

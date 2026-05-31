@@ -167,6 +167,26 @@ session, and detected liquidity pools. Waiting / `NO TRADE` output includes the
 current M1 tick-volume multiplier and spread/session/pool context so you can see
 market conditions before the trigger is complete.
 
+## Zone Freshness
+
+The bot now treats M15 zones as conditional plans with age and distance context,
+not predictions. `NO TRADE` output includes a `Zone` line showing whether the
+nearest aligned zone is near/far and fresh/stale/expired.
+
+```json
+"zone_stale_after_hours": 12.0,
+"zone_expire_after_hours": 36.0,
+"zone_near_threshold_points": 5.0
+```
+
+Expired zones are ignored for entry scanning. Matching zones are checked nearest
+first, so the waiting reason should match the zone displayed in the setup block.
+Repeated Pushover scan summaries for the same setup are limited by:
+
+```json
+"pushover_scan_summary_min_interval_minutes": 15
+```
+
 Disable OpenAI from the CLI:
 
 ```powershell

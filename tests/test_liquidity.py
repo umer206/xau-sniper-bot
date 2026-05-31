@@ -74,6 +74,21 @@ class LiquidityAnalyzerTests(TestCase):
         self.assertGreater(context.current_volume_multiplier, 1.0)
         self.assertTrue(context.liquidity_pools)
 
+    def test_buy_context_filters_liquidity_pools_above_current_price(self) -> None:
+        analyzer = LiquidityAnalyzer(BotConfig())
+        m1 = _m1_frame(trigger_volume=180, sweep_volume=130)
+
+        context = analyzer.market_context(
+            m1=m1,
+            m15=_m15_frame_with_equal_lows_above_price(),
+            direction=Direction.BUY,
+            spread=0.20,
+            now=datetime(2026, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertIn("previous low 95.00", context.liquidity_pools)
+        self.assertNotIn("equal lows near 110.00", context.liquidity_pools)
+
 
 def _m1_frame(trigger_volume: int, sweep_volume: int) -> pd.DataFrame:
     times = pd.date_range("2026-01-01 12:00", periods=40, freq="min", tz="UTC")
@@ -109,6 +124,25 @@ def _m15_frame() -> pd.DataFrame:
                 "tick_volume": 100,
             }
         )
+    return pd.DataFrame(rows)
+
+
+def _m15_frame_with_equal_lows_above_price() -> pd.DataFrame:
+    times = pd.date_range("2026-01-01 08:00", periods=60, freq="15min", tz="UTC")
+    rows = []
+    for idx, timestamp in enumerate(times):
+        rows.append(
+            {
+                "time": timestamp,
+                "open": 100.0,
+                "high": 120.0 + idx * 0.1,
+                "low": 90.0 + idx * 0.5,
+                "close": 101.0,
+                "tick_volume": 100,
+            }
+        )
+    rows[-8]["low"] = 110.0
+    rows[-3]["low"] = 110.1
     return pd.DataFrame(rows)
 
 

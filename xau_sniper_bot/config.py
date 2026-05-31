@@ -23,6 +23,9 @@ class BotConfig:
     atr_period: int = 14
     zone_atr_padding: float = 0.20
     zone_max_age_bars: int = 120
+    zone_stale_after_hours: float = 12.0
+    zone_expire_after_hours: float = 36.0
+    zone_near_threshold_points: float = 5.0
     m5_zone_touch_lookback: int = 24
     m1_zone_touch_lookback: int = 10
     m1_sweep_lookback: int = 20
@@ -75,6 +78,7 @@ class BotConfig:
     pushover_alert_signals: bool = True
     pushover_alert_no_trade: bool = False
     pushover_alert_scan_summary: bool = True
+    pushover_scan_summary_min_interval_minutes: int = 15
     pushover_alert_status: bool = True
     mt5_chart_bridge_enabled: bool = False
     mt5_chart_bridge_path: str = ""

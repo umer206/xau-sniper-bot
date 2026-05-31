@@ -136,6 +136,8 @@ class OutputFormatterTests(TestCase):
         self.assertIn("Current XAUUSD price is 4563.04", text)
         self.assertIn("Volume    : current M1 tick volume 1.50x average", text)
         self.assertIn("Liquidity : spread 0.20 (OK)", text)
+        self.assertIn("Zone      : nearest aligned buy zone 4508.19-4516.57", text)
+        self.assertIn("price is 46.47 points above it (far)", text)
         self.assertIn("Aligned plan: waiting for price to enter the buy zone", text)
 
 

@@ -59,6 +59,8 @@ class XauSniperBot:
         self.notifier = PushoverNotifier(config)
         self.state = MarketState()
         self.output: OutputWriter | None = None
+        self._last_scan_summary_at: datetime | None = None
+        self._last_scan_summary_key: str | None = None
 
     def start(self) -> None:
         self.status.running("Starting bot and connecting to MT5")
@@ -124,14 +126,28 @@ class XauSniperBot:
             now,
             current_spread,
         )
+        active_zones = self._active_zones(self.state.zones, now)
+        if not active_zones:
+            self._write_no_trade(
+                (
+                    "No fresh M15 setup zones remain; old zones are ignored after "
+                    f"{self.config.zone_expire_after_hours:.0f}h."
+                ),
+                current_price=current_price,
+                zones=[],
+                market_context=market_context,
+            )
+            self.status.running("No fresh M15 setup zones remain")
+            return
         matching_zones = [
-            zone for zone in self.state.zones if zone.direction == direction_for_bias
+            zone for zone in active_zones if zone.direction == direction_for_bias
         ]
+        matching_zones = self._sort_zones_by_distance(matching_zones, current_price)
         if not matching_zones:
             self._write_no_trade(
                 "No M15 setup zone aligns with the H1 bias.",
                 current_price=current_price,
-                zones=self.state.zones,
+                zones=active_zones,
                 market_context=market_context,
             )
             self.status.running("No M15 setup zone aligns with H1 bias")
@@ -328,6 +344,22 @@ class XauSniperBot:
             now=now,
         )
 
+    def _active_zones(self, zones: list[Zone], now: datetime) -> list[Zone]:
+        expire_after = self.config.zone_expire_after_hours
+        if expire_after <= 0:
+            return zones
+        return [zone for zone in zones if _zone_age_hours(zone, now) < expire_after]
+
+    def _sort_zones_by_distance(
+        self,
+        zones: list[Zone],
+        current_price: float,
+    ) -> list[Zone]:
+        return sorted(
+            zones,
+            key=lambda zone: (_zone_distance(zone, current_price), -zone.strength),
+        )
+
     def _notify_signal(self, signal: Signal) -> None:
         result = self.notifier.notify_signal(signal)
         if self.notifier.enabled:
@@ -354,6 +386,13 @@ class XauSniperBot:
         external_analysis: ExternalAnalysis | None,
         market_context: MarketContext | None,
     ) -> None:
+        if not self._should_send_scan_summary(
+            reason,
+            current_price,
+            zones,
+            external_analysis,
+        ):
+            return
         result = self.notifier.notify_scan_summary(
             symbol=self.config.symbol,
             reason=reason,
@@ -365,6 +404,36 @@ class XauSniperBot:
         )
         if self.notifier.enabled and self.config.pushover_alert_scan_summary:
             print(f"Pushover scan summary alert: {result.message}")
+
+    def _should_send_scan_summary(
+        self,
+        reason: str,
+        current_price: float | None,
+        zones: list[Zone],
+        external_analysis: ExternalAnalysis | None,
+    ) -> bool:
+        interval = self.config.pushover_scan_summary_min_interval_minutes
+        if interval <= 0:
+            return True
+        now = datetime.now(timezone.utc)
+        summary_key = _scan_summary_key(
+            self.state.bias,
+            reason,
+            current_price,
+            zones,
+            external_analysis,
+        )
+        if summary_key != self._last_scan_summary_key:
+            self._last_scan_summary_key = summary_key
+            self._last_scan_summary_at = now
+            return True
+        if self._last_scan_summary_at is None:
+            self._last_scan_summary_at = now
+            return True
+        if now - self._last_scan_summary_at >= timedelta(minutes=interval):
+            self._last_scan_summary_at = now
+            return True
+        return False
 
 
 def _due(last_run: datetime | None, now: datetime, minutes: int) -> bool:
@@ -379,6 +448,37 @@ def _direction_for_bias(bias: Bias) -> Direction | None:
     if bias == Bias.BEARISH:
         return Direction.SELL
     return None
+
+
+def _zone_age_hours(zone: Zone, now: datetime) -> float:
+    anchor = zone.anchor_time
+    if anchor.tzinfo is None:
+        anchor = anchor.replace(tzinfo=timezone.utc)
+    return max((now - anchor.astimezone(timezone.utc)).total_seconds() / 3600.0, 0.0)
+
+
+def _zone_distance(zone: Zone, current_price: float) -> float:
+    if zone.low <= current_price <= zone.high:
+        return 0.0
+    if current_price > zone.high:
+        return current_price - zone.high
+    return zone.low - current_price
+
+
+def _scan_summary_key(
+    bias: BiasSnapshot | None,
+    reason: str,
+    current_price: float | None,
+    zones: list[Zone],
+    external_analysis: ExternalAnalysis | None,
+) -> str:
+    bias_value = bias.bias.value if bias else "none"
+    zone_key = "|".join(
+        f"{zone.direction.value}:{zone.low:.2f}:{zone.high:.2f}" for zone in zones[:3]
+    )
+    external_key = external_analysis.direction if external_analysis else "none"
+    price_bucket = "none" if current_price is None else f"{current_price // 5:.0f}"
+    return "|".join([bias_value, reason, price_bucket, zone_key, external_key])
 
 
 def parse_args() -> argparse.Namespace:
