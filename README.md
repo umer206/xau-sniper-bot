@@ -75,6 +75,30 @@ PowerShell helpers are available too:
 
 For access from office laptops or iOS, see [REMOTE_ACCESS.md](REMOTE_ACCESS.md).
 
+## Pushover Alerts
+
+For mobile, use native Pushover notifications instead of reading a terminal.
+
+1. Install Pushover on iPhone/iPad.
+2. Create a Pushover application and copy its API token.
+3. Copy your Pushover user key.
+4. Set environment variables on the home MT5 laptop:
+
+```powershell
+$env:PUSHOVER_APP_TOKEN="your_app_token"
+$env:PUSHOVER_USER_KEY="your_user_key"
+```
+
+5. Set `pushover_enabled` to `true` in `config.json`.
+6. Send a test:
+
+```powershell
+.\scripts\test-pushover.ps1
+```
+
+By default, the bot alerts for trade setups and bot start/stop/crash events.
+No-trade alerts are off by default to avoid notification spam.
+
 If the external analyzer is enabled, make sure `groq` is installed too because
 `C:\2026\CodexAlyzer\main.py` imports it:
 

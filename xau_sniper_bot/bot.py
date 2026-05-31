@@ -14,6 +14,7 @@ from .execution import MT5TradeExecutor
 from .logging_setup import tee_console_to_log
 from .models import Bias, BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
 from .mt5_client import MT5Client
+from .notifier import PushoverNotifier
 from .openai_validator import OpenAIValidator
 from .output import OutputWriter
 from .sniper import M1SniperScanner
@@ -45,6 +46,7 @@ class XauSniperBot:
         self.scanner = M1SniperScanner(config)
         self.validator = OpenAIValidator(config)
         self.status = StatusWriter(config)
+        self.notifier = PushoverNotifier(config)
         self.state = MarketState()
         self.output: OutputWriter | None = None
 
@@ -54,11 +56,13 @@ class XauSniperBot:
         chart_path = self.mt5.default_chart_bridge_path()
         self.output = OutputWriter(self.config, chart_path)
         self.status.running("Connected to MT5")
+        self._notify_status("XAU bot started", "Connected to MT5 and watching market.")
         print(f"Connected to MT5. Watching {self.config.symbol}. Dry run: {self.config.dry_run}")
 
     def stop(self) -> None:
         self.mt5.shutdown()
         self.status.stopped("Bot stopped gracefully")
+        self._notify_status("XAU bot stopped", "Bot stopped gracefully.", priority=-1)
 
     def run_forever(self) -> None:
         self.start()
@@ -159,6 +163,7 @@ class XauSniperBot:
                     direction=trigger.direction.value,
                     execution_status=execution.status,
                 )
+                self._notify_signal(signal)
             else:
                 external_note = ""
                 if external_analysis is not None:
@@ -247,6 +252,25 @@ class XauSniperBot:
             zones=zones,
             external_analysis=external_analysis,
         )
+        self._notify_no_trade(reason)
+
+    def _notify_signal(self, signal: Signal) -> None:
+        result = self.notifier.notify_signal(signal)
+        if self.notifier.enabled:
+            print(f"Pushover signal alert: {result.message}")
+
+    def _notify_status(self, title: str, message: str, priority: int | None = None) -> None:
+        result = self.notifier.notify_status(title, message, priority=priority)
+        if self.notifier.enabled:
+            print(f"Pushover status alert: {result.message}")
+
+    def _notify_no_trade(self, reason: str) -> None:
+        result = self.notifier.notify_no_trade(
+            f"{self.config.symbol} no trade",
+            reason,
+        )
+        if self.notifier.enabled and self.config.pushover_alert_no_trade:
+            print(f"Pushover no-trade alert: {result.message}")
 
 
 def _due(last_run: datetime | None, now: datetime, minutes: int) -> bool:
@@ -297,6 +321,7 @@ def main() -> None:
                 bot.run_forever()
         except Exception as exc:
             bot.status.error(f"Bot crashed: {exc}")
+            bot._notify_status("XAU bot crashed", str(exc), priority=1)
             raise
 
 

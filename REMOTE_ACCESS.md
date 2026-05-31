@@ -7,6 +7,7 @@ Recommended stack:
 
 - VS Code Remote Tunnel for the remote project and terminal.
 - `logs/bot.log` as the shared live terminal feed.
+- Pushover for readable iOS trade/status notifications.
 - Tailscale as a backup access layer.
 - MT5 mobile only for monitoring/closing trades, not for running the bot.
 
@@ -104,7 +105,10 @@ Sign in, connect to the tunnel, and open the same project folder.
 
 ## iPhone / iPad
 
-Use Safari or another browser:
+For day-to-day mobile use, prefer Pushover notifications plus MT5 mobile.
+Use Safari/VS Code only when you need remote commands.
+
+Browser fallback:
 
 ```text
 https://vscode.dev
@@ -122,6 +126,41 @@ Best iOS commands:
 
 Avoid typing long live-execution commands from iOS unless necessary. Use MT5
 mobile to monitor or manually close trades.
+
+## Pushover Mobile Alerts
+
+Pushover gives readable native iOS notifications without opening a web UI.
+
+1. Install Pushover on iPhone/iPad.
+2. Register a Pushover application.
+3. On the home laptop, set:
+
+```powershell
+$env:PUSHOVER_APP_TOKEN="your_app_token"
+$env:PUSHOVER_USER_KEY="your_user_key"
+```
+
+4. In `config.json`, set:
+
+```json
+"pushover_enabled": true
+```
+
+5. Send a test:
+
+```powershell
+.\scripts\test-pushover.ps1
+```
+
+Default alerts:
+
+- Valid LONG/SHORT setup
+- Execution status
+- Bot started
+- Bot stopped
+- Bot crashed
+
+No-trade alerts stay off unless `pushover_alert_no_trade` is set to `true`.
 
 ## Shared Terminal Feed
 

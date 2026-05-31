@@ -53,6 +53,15 @@ class BotConfig:
     log_file_path: str = "logs/bot.log"
     status_file_path: str = "runtime/status.json"
     status_stale_seconds: int = 180
+    pushover_enabled: bool = False
+    pushover_app_token: str = ""
+    pushover_user_key: str = ""
+    pushover_device: str = ""
+    pushover_priority: int = 0
+    pushover_sound: str = ""
+    pushover_alert_signals: bool = True
+    pushover_alert_no_trade: bool = False
+    pushover_alert_status: bool = True
     mt5_chart_bridge_enabled: bool = False
     mt5_chart_bridge_path: str = ""
     dry_run: bool = True
