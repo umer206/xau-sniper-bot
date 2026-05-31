@@ -8,6 +8,7 @@ from xau_sniper_bot.models import (
     BiasSnapshot,
     ConfirmationSnapshot,
     Direction,
+    MarketContext,
     Signal,
     SniperTrigger,
     TargetLevel,
@@ -118,10 +119,23 @@ class OutputFormatterTests(TestCase):
                 )
             ],
             external_analysis=None,
+            market_context=MarketContext(
+                spread=0.20,
+                spread_ok=True,
+                session="london_new_york_overlap",
+                current_volume=180.0,
+                average_volume=120.0,
+                current_volume_multiplier=1.5,
+                smooth_price_action=True,
+                liquidity_pools=["previous low 4508.19"],
+                reason=["test"],
+            ),
         )
 
         self.assertIn("Direction : NO TRADE", text)
         self.assertIn("Current XAUUSD price is 4563.04", text)
+        self.assertIn("Volume    : current M1 tick volume 1.50x average", text)
+        self.assertIn("Liquidity : spread 0.20 (OK)", text)
         self.assertIn("Aligned plan: waiting for price to enter the buy zone", text)
 
 

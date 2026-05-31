@@ -163,7 +163,9 @@ These are controlled by:
 ```
 
 Trade setup output includes a `Liquidity` line with spread, volume multipliers,
-session, and detected liquidity pools.
+session, and detected liquidity pools. Waiting / `NO TRADE` output includes the
+current M1 tick-volume multiplier and spread/session/pool context so you can see
+market conditions before the trigger is complete.
 
 Disable OpenAI from the CLI:
 

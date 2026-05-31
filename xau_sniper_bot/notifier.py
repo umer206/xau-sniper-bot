@@ -8,7 +8,7 @@ import urllib.request
 from dataclasses import dataclass
 
 from .config import BotConfig
-from .models import BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
+from .models import BiasSnapshot, Direction, ExternalAnalysis, MarketContext, Signal, Zone
 from .output import format_no_trade_setup, format_trade_setup
 
 
@@ -70,6 +70,7 @@ class PushoverNotifier:
         bias: BiasSnapshot | None,
         zones: list[Zone],
         external_analysis: ExternalAnalysis | None,
+        market_context: MarketContext | None = None,
     ) -> NotificationResult:
         if not self.config.pushover_alert_scan_summary:
             return NotificationResult(False, "Scan summary alerts disabled")
@@ -80,6 +81,7 @@ class PushoverNotifier:
             bias=bias,
             zones=zones,
             external_analysis=external_analysis,
+            market_context=market_context,
         )
         return self.send(f"{symbol} scan summary", _truncate(message), priority=-1)
 

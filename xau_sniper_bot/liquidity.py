@@ -6,7 +6,7 @@ import pandas as pd
 
 from .config import BotConfig
 from .indicators import atr
-from .models import Direction, LiquiditySnapshot, SniperTrigger
+from .models import Direction, LiquiditySnapshot, MarketContext, SniperTrigger
 
 
 class LiquidityAnalyzer:
@@ -83,6 +83,44 @@ class LiquidityAnalyzer:
             smooth_price_action=smooth,
             liquidity_pools=pools,
             passed=passed,
+            reason=reason,
+        )
+
+    def market_context(
+        self,
+        *,
+        m1: pd.DataFrame,
+        m15: pd.DataFrame,
+        direction: Direction,
+        spread: float,
+        now: datetime,
+    ) -> MarketContext:
+        average_volume = _average_volume(m1, self.config.liquidity_volume_lookback)
+        current_volume = _current_volume(m1)
+        current_multiplier = _multiplier(current_volume, average_volume)
+        spread_ok = spread <= self.config.max_liquidity_spread
+        smooth = self._smooth_price_action(m1)
+        session = _session_label(now)
+        pools = self._liquidity_pools(m15, direction)
+
+        reason = [
+            f"Spread {'OK' if spread_ok else 'wide'} at {spread:.2f}",
+            f"Current M1 tick volume {current_multiplier:.2f}x average",
+            f"Session: {session}",
+            "Price action smooth" if smooth else "Price action is jumpy",
+        ]
+        if pools:
+            reason.append(f"Nearby liquidity pools: {'; '.join(pools[:3])}")
+
+        return MarketContext(
+            spread=spread,
+            spread_ok=spread_ok,
+            session=session,
+            current_volume=current_volume,
+            average_volume=average_volume,
+            current_volume_multiplier=current_multiplier,
+            smooth_price_action=smooth,
+            liquidity_pools=pools,
             reason=reason,
         )
 
@@ -164,6 +202,12 @@ def _average_volume(m1: pd.DataFrame, lookback: int) -> float:
     if volumes.empty:
         return 0.0
     return float(volumes.mean())
+
+
+def _current_volume(m1: pd.DataFrame) -> float:
+    if m1.empty:
+        return 0.0
+    return float(m1.iloc[-1].get("tick_volume", 0.0))
 
 
 def _multiplier(value: float, average: float) -> float:

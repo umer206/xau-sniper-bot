@@ -13,7 +13,15 @@ from .external_analyzer import ExternalAnalyzer
 from .execution import MT5TradeExecutor
 from .liquidity import LiquidityAnalyzer
 from .logging_setup import tee_console_to_log
-from .models import Bias, BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
+from .models import (
+    Bias,
+    BiasSnapshot,
+    Direction,
+    ExternalAnalysis,
+    MarketContext,
+    Signal,
+    Zone,
+)
 from .mt5_client import MT5Client
 from .notifier import PushoverNotifier
 from .openai_validator import OpenAIValidator
@@ -109,6 +117,13 @@ class XauSniperBot:
         m1 = self.mt5.rates("M1", self.config.m1_bars)
         current_price = float(m1.iloc[-1]["close"])
         direction_for_bias = _direction_for_bias(self.state.bias.bias)
+        current_spread = self.mt5.spread()
+        market_context = self._market_context(
+            m1,
+            direction_for_bias,
+            now,
+            current_spread,
+        )
         matching_zones = [
             zone for zone in self.state.zones if zone.direction == direction_for_bias
         ]
@@ -117,6 +132,7 @@ class XauSniperBot:
                 "No M15 setup zone aligns with the H1 bias.",
                 current_price=current_price,
                 zones=self.state.zones,
+                market_context=market_context,
             )
             self.status.running("No M15 setup zone aligns with H1 bias")
             return
@@ -153,7 +169,7 @@ class XauSniperBot:
                 m15=self.state.m15,
                 direction=zone.direction,
                 trigger=trigger,
-                spread=self.mt5.spread(),
+                spread=current_spread,
                 now=now,
             )
             if not liquidity.passed:
@@ -213,6 +229,7 @@ class XauSniperBot:
                     current_price=current_price,
                     zones=matching_zones,
                     external_analysis=external_analysis,
+                    market_context=market_context,
                 )
                 self.status.running("Candidate setup rejected")
             return
@@ -222,6 +239,7 @@ class XauSniperBot:
             reason,
             current_price=current_price,
             zones=matching_zones,
+            market_context=market_context,
         )
         self.status.running("Waiting for complete entry trigger", reason=reason)
 
@@ -270,6 +288,7 @@ class XauSniperBot:
         current_price: float | None,
         zones: list[Zone],
         external_analysis: ExternalAnalysis | None = None,
+        market_context: MarketContext | None = None,
     ) -> None:
         if self.output is None:
             return
@@ -282,8 +301,32 @@ class XauSniperBot:
             bias=self.state.bias,
             zones=zones,
             external_analysis=external_analysis,
+            market_context=market_context,
         )
-        self._notify_scan_summary(reason, current_price, zones, external_analysis)
+        self._notify_scan_summary(
+            reason,
+            current_price,
+            zones,
+            external_analysis,
+            market_context,
+        )
+
+    def _market_context(
+        self,
+        m1: pd.DataFrame,
+        direction: Direction | None,
+        now: datetime,
+        spread: float,
+    ) -> MarketContext | None:
+        if direction is None or self.state.m15 is None:
+            return None
+        return self.liquidity_analyzer.market_context(
+            m1=m1,
+            m15=self.state.m15,
+            direction=direction,
+            spread=spread,
+            now=now,
+        )
 
     def _notify_signal(self, signal: Signal) -> None:
         result = self.notifier.notify_signal(signal)
@@ -309,6 +352,7 @@ class XauSniperBot:
         current_price: float | None,
         zones: list[Zone],
         external_analysis: ExternalAnalysis | None,
+        market_context: MarketContext | None,
     ) -> None:
         result = self.notifier.notify_scan_summary(
             symbol=self.config.symbol,
@@ -317,6 +361,7 @@ class XauSniperBot:
             bias=self.state.bias,
             zones=zones,
             external_analysis=external_analysis,
+            market_context=market_context,
         )
         if self.notifier.enabled and self.config.pushover_alert_scan_summary:
             print(f"Pushover scan summary alert: {result.message}")

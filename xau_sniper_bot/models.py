@@ -132,6 +132,19 @@ class LiquiditySnapshot:
 
 
 @dataclass(frozen=True)
+class MarketContext:
+    spread: float
+    spread_ok: bool
+    session: str
+    current_volume: float
+    average_volume: float
+    current_volume_multiplier: float
+    smooth_price_action: bool
+    liquidity_pools: list[str]
+    reason: list[str]
+
+
+@dataclass(frozen=True)
 class ExecutionResult:
     status: str
     message: str

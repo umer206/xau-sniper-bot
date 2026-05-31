@@ -7,7 +7,15 @@ from enum import Enum
 from pathlib import Path
 
 from .config import BotConfig
-from .models import BiasSnapshot, Direction, ExternalAnalysis, Signal, TargetLevel, Zone
+from .models import (
+    BiasSnapshot,
+    Direction,
+    ExternalAnalysis,
+    MarketContext,
+    Signal,
+    TargetLevel,
+    Zone,
+)
 
 
 class OutputWriter:
@@ -32,6 +40,7 @@ class OutputWriter:
         bias: BiasSnapshot | None = None,
         zones: list[Zone] | None = None,
         external_analysis: ExternalAnalysis | None = None,
+        market_context: MarketContext | None = None,
     ) -> None:
         text = format_no_trade_setup(
             symbol=symbol,
@@ -40,6 +49,7 @@ class OutputWriter:
             bias=bias,
             zones=zones or [],
             external_analysis=external_analysis,
+            market_context=market_context,
         )
         payload = {
             "type": "no_trade",
@@ -50,6 +60,9 @@ class OutputWriter:
             "zones": [_payload_safe(asdict(zone)) for zone in zones or []],
             "external_analysis": _payload_safe(asdict(external_analysis))
             if external_analysis
+            else None,
+            "market_context": _payload_safe(asdict(market_context))
+            if market_context
             else None,
             "trade_setup_text": text,
         }
@@ -126,6 +139,7 @@ def format_no_trade_setup(
     bias: BiasSnapshot | None,
     zones: list[Zone],
     external_analysis: ExternalAnalysis | None,
+    market_context: MarketContext | None = None,
 ) -> str:
     zone_text = _zone_wait_text(zones, current_price, bias)
     bias_text = bias.bias.value if bias else "unknown"
@@ -140,6 +154,8 @@ def format_no_trade_setup(
             "Target 2  : N/A",
             "R:R       : N/A",
             _external_no_trade_line(external_analysis),
+            _market_volume_line(market_context),
+            _market_liquidity_line(market_context),
             f"Confluence: H1 bias is {bias_text}. {reason}",
         ]
     )
@@ -298,6 +314,27 @@ def _liquidity_line(signal: Signal) -> str:
         f"volume {liquidity.trigger_volume_multiplier:.2f}x trigger / "
         f"{liquidity.sweep_volume_multiplier:.2f}x sweep, "
         f"session {liquidity.session}, pools: {pool_text}."
+    )
+
+
+def _market_volume_line(market_context: MarketContext | None) -> str:
+    if market_context is None:
+        return "Volume    : Not checked yet."
+    return (
+        "Volume    : current M1 tick volume "
+        f"{market_context.current_volume_multiplier:.2f}x average "
+        f"({market_context.current_volume:.0f} vs {market_context.average_volume:.0f})."
+    )
+
+
+def _market_liquidity_line(market_context: MarketContext | None) -> str:
+    if market_context is None:
+        return "Liquidity : Not checked yet."
+    pool_text = "; ".join(market_context.liquidity_pools[:2]) or "no clear pool"
+    return (
+        f"Liquidity : spread {market_context.spread:.2f} "
+        f"({'OK' if market_context.spread_ok else 'WIDE'}), "
+        f"session {market_context.session}, pools: {pool_text}."
     )
 
 

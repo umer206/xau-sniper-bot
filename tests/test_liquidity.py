@@ -57,6 +57,23 @@ class LiquidityAnalyzerTests(TestCase):
         self.assertFalse(snapshot.volume_ok)
         self.assertFalse(snapshot.passed)
 
+    def test_market_context_reports_current_volume_and_pools(self) -> None:
+        analyzer = LiquidityAnalyzer(BotConfig())
+        m1 = _m1_frame(trigger_volume=180, sweep_volume=130)
+
+        context = analyzer.market_context(
+            m1=m1,
+            m15=_m15_frame(),
+            direction=Direction.BUY,
+            spread=0.20,
+            now=datetime(2026, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertTrue(context.spread_ok)
+        self.assertEqual(context.current_volume, 180.0)
+        self.assertGreater(context.current_volume_multiplier, 1.0)
+        self.assertTrue(context.liquidity_pools)
+
 
 def _m1_frame(trigger_volume: int, sweep_volume: int) -> pd.DataFrame:
     times = pd.date_range("2026-01-01 12:00", periods=40, freq="min", tz="UTC")
@@ -110,4 +127,3 @@ def _trigger(timestamp: object) -> SniperTrigger:
         reason=["test"],
         risk_reward=1.4,
     )
-
