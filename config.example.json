@@ -43,7 +43,7 @@
   "log_file_path": "logs/bot.log",
   "status_file_path": "runtime/status.json",
   "status_stale_seconds": 180,
-  "pushover_enabled": false,
+  "pushover_enabled": true,
   "pushover_app_token": "",
   "pushover_user_key": "",
   "pushover_device": "",

@@ -53,7 +53,7 @@ class BotConfig:
     log_file_path: str = "logs/bot.log"
     status_file_path: str = "runtime/status.json"
     status_stale_seconds: int = 180
-    pushover_enabled: bool = False
+    pushover_enabled: bool = True
     pushover_app_token: str = ""
     pushover_user_key: str = ""
     pushover_device: str = ""

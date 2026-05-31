@@ -140,6 +140,13 @@ $env:PUSHOVER_APP_TOKEN="your_app_token"
 $env:PUSHOVER_USER_KEY="your_user_key"
 ```
 
+Or create a local `.env` file in the project folder:
+
+```text
+PUSHOVER_APP_TOKEN=your_app_token
+PUSHOVER_USER_KEY=your_user_key
+```
+
 4. In `config.json`, set:
 
 ```json

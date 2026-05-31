@@ -8,5 +8,6 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-python -m xau_sniper_bot.pushover_test --config $Config --title $Title --message $Message
+. .\scripts\load-env.ps1
 
+python -m xau_sniper_bot.pushover_test --config $Config --title $Title --message $Message

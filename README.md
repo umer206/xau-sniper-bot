@@ -89,6 +89,13 @@ $env:PUSHOVER_APP_TOKEN="your_app_token"
 $env:PUSHOVER_USER_KEY="your_user_key"
 ```
 
+Or create a local `.env` file beside `config.json`:
+
+```text
+PUSHOVER_APP_TOKEN=your_app_token
+PUSHOVER_USER_KEY=your_user_key
+```
+
 5. Set `pushover_enabled` to `true` in `config.json`.
 6. Send a test:
 
