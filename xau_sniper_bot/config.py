@@ -32,6 +32,16 @@ class BotConfig:
     min_m1_atr: float = 0.0
     max_m1_atr: float = 0.0
     risk_reward_floor: float = 1.25
+    liquidity_filter_enabled: bool = True
+    liquidity_session_filter_enabled: bool = False
+    max_liquidity_spread: float = 0.50
+    liquidity_volume_lookback: int = 20
+    min_trigger_volume_multiplier: float = 1.25
+    min_sweep_volume_multiplier: float = 1.10
+    liquidity_smooth_lookback: int = 10
+    max_liquidity_candle_atr_multiplier: float = 2.50
+    liquidity_pool_lookback: int = 50
+    equal_level_tolerance: float = 0.30
     external_analyzer_enabled: bool = False
     external_analyzer_path: str = r"C:\2026\CodexAlyzer\main.py"
     external_analyzer_require_alignment: bool = True

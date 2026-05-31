@@ -143,6 +143,28 @@ Execution guardrails:
 - Blocks entries when spread is above `trade_max_spread`.
 - Sends SL and TP with the MT5 order.
 
+## Liquidity And Volume Proxies
+
+Forex has no centralized order book, so the bot uses proxies:
+
+- Bid/ask spread quality
+- Session context
+- Smooth versus jumpy M1 price action
+- M1 tick-volume spike on the sweep/trigger
+- Previous highs/lows, equal highs/lows, and consolidation boundaries
+
+These are controlled by:
+
+```json
+"liquidity_filter_enabled": true,
+"max_liquidity_spread": 0.50,
+"min_trigger_volume_multiplier": 1.25,
+"min_sweep_volume_multiplier": 1.10
+```
+
+Trade setup output includes a `Liquidity` line with spread, volume multipliers,
+session, and detected liquidity pools.
+
 Disable OpenAI from the CLI:
 
 ```powershell

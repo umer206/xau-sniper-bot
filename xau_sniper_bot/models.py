@@ -115,6 +115,23 @@ class ExternalAnalysis:
 
 
 @dataclass(frozen=True)
+class LiquiditySnapshot:
+    spread: float
+    spread_ok: bool
+    session: str
+    session_ok: bool
+    trigger_volume: float
+    average_volume: float
+    trigger_volume_multiplier: float
+    sweep_volume_multiplier: float
+    volume_ok: bool
+    smooth_price_action: bool
+    liquidity_pools: list[str]
+    passed: bool
+    reason: list[str]
+
+
+@dataclass(frozen=True)
 class ExecutionResult:
     status: str
     message: str
@@ -134,6 +151,7 @@ class Signal:
     trigger: SniperTrigger
     validation: ValidationResult
     external_analysis: ExternalAnalysis | None = None
+    liquidity: LiquiditySnapshot | None = None
     execution: ExecutionResult | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 

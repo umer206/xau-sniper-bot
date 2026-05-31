@@ -11,6 +11,7 @@ from .config import BotConfig, load_config
 from .confirmation import M5ConfirmationEngine
 from .external_analyzer import ExternalAnalyzer
 from .execution import MT5TradeExecutor
+from .liquidity import LiquidityAnalyzer
 from .logging_setup import tee_console_to_log
 from .models import Bias, BiasSnapshot, Direction, ExternalAnalysis, Signal, Zone
 from .mt5_client import MT5Client
@@ -43,6 +44,7 @@ class XauSniperBot:
         self.confirmation_engine = M5ConfirmationEngine(config)
         self.external_analyzer = ExternalAnalyzer(config)
         self.trade_executor = MT5TradeExecutor(config, self.mt5)
+        self.liquidity_analyzer = LiquidityAnalyzer(config)
         self.scanner = M1SniperScanner(config)
         self.validator = OpenAIValidator(config)
         self.status = StatusWriter(config)
@@ -145,8 +147,29 @@ class XauSniperBot:
                 )
                 continue
 
+            liquidity = self.liquidity_analyzer.analyze(
+                m1=m1,
+                m5=self.state.m5,
+                m15=self.state.m15,
+                direction=zone.direction,
+                trigger=trigger,
+                spread=self.mt5.spread(),
+                now=now,
+            )
+            if not liquidity.passed:
+                wait_reasons.append(
+                    "Liquidity filter failed: " + "; ".join(liquidity.reason)
+                )
+                continue
+
             external_analysis = self.external_analyzer.analyze()
-            validation = self.validator.validate(self.state.bias, zone, confirmation, trigger)
+            validation = self.validator.validate(
+                self.state.bias,
+                zone,
+                confirmation,
+                trigger,
+                liquidity,
+            )
             signal = Signal(
                 symbol=self.config.symbol,
                 bias=self.state.bias,
@@ -155,6 +178,7 @@ class XauSniperBot:
                 trigger=trigger,
                 validation=validation,
                 external_analysis=external_analysis,
+                liquidity=liquidity,
             )
             external_aligned = self.external_analyzer.aligns_with(
                 external_analysis,

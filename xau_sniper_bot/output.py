@@ -111,6 +111,7 @@ def format_trade_setup(signal: Signal) -> str:
             f"Target 2  : {_target_line(trigger.target_2)}",
             f"R:R       : 1:{trigger.risk_reward:.1f}",
             _external_line(signal),
+            _liquidity_line(signal),
             _execution_line(signal),
             f"Confluence: {_confluence(signal)}",
         ]
@@ -185,6 +186,8 @@ def _confluence(signal: Signal) -> str:
             f"({signal.external_analysis.bull_score}/"
             f"{signal.external_analysis.bear_score})"
         )
+    if signal.liquidity and signal.liquidity.passed:
+        pieces.append("liquidity proxies confirmed")
     return ", ".join(pieces) + "."
 
 
@@ -282,6 +285,20 @@ def _execution_line(signal: Signal) -> str:
     if execution is None:
         return "Execution : Not attempted."
     return f"Execution : {execution.status.upper()} - {execution.message}"
+
+
+def _liquidity_line(signal: Signal) -> str:
+    liquidity = signal.liquidity
+    if liquidity is None:
+        return "Liquidity : Not checked."
+    pool_text = "; ".join(liquidity.liquidity_pools[:2]) or "no clear pool"
+    return (
+        f"Liquidity : spread {liquidity.spread:.2f} "
+        f"({'OK' if liquidity.spread_ok else 'WIDE'}), "
+        f"volume {liquidity.trigger_volume_multiplier:.2f}x trigger / "
+        f"{liquidity.sweep_volume_multiplier:.2f}x sweep, "
+        f"session {liquidity.session}, pools: {pool_text}."
+    )
 
 
 def _external_direction_matches(signal: Signal) -> bool:

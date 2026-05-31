@@ -56,6 +56,12 @@ class MT5Client:
         ask = float(tick.ask)
         return (bid + ask) / 2.0
 
+    def spread(self) -> float:
+        tick = self.mt5.symbol_info_tick(self.symbol)
+        if tick is None:
+            raise RuntimeError(f"No tick for {self.symbol}: {self.mt5.last_error()}")
+        return float(tick.ask) - float(tick.bid)
+
     def default_chart_bridge_path(self, filename: str = "xau_sniper_signal.json") -> Path | None:
         info: Any = self.mt5.terminal_info()
         if info is None:
@@ -64,4 +70,3 @@ class MT5Client:
         if not data_path:
             return None
         return Path(data_path) / "MQL5" / "Files" / filename
-

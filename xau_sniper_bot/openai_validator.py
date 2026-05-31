@@ -10,6 +10,7 @@ from .config import BotConfig
 from .models import (
     BiasSnapshot,
     ConfirmationSnapshot,
+    LiquiditySnapshot,
     Signal,
     SniperTrigger,
     ValidationResult,
@@ -42,6 +43,7 @@ class OpenAIValidator:
         zone: Zone,
         confirmation: ConfirmationSnapshot,
         trigger: SniperTrigger,
+        liquidity: LiquiditySnapshot | None = None,
     ) -> ValidationResult:
         if not self.config.openai_enabled:
             return self._heuristic_validation(trigger, "openai_disabled")
@@ -73,12 +75,14 @@ class OpenAIValidator:
                         "zone": _json_safe(asdict(zone)),
                         "confirmation": _json_safe(asdict(confirmation)),
                         "trigger": _json_safe(asdict(trigger)),
+                        "liquidity": _json_safe(asdict(liquidity)) if liquidity else None,
                         "rules": {
                             "buy": [
                                 "H1/M15 bullish bias",
                                 "Price in demand/support",
                                 "M5 confirms bullish continuation after zone interaction",
                                 "M1 sell-side sweep",
+                                "Liquidity proxies confirm spread and tick volume",
                                 "Close back above swept low",
                                 "Minor bullish BOS",
                                 "SL below swept low",
@@ -89,6 +93,7 @@ class OpenAIValidator:
                                 "Price in supply/resistance",
                                 "M5 confirms bearish continuation after zone interaction",
                                 "M1 buy-side sweep",
+                                "Liquidity proxies confirm spread and tick volume",
                                 "Close back below swept high",
                                 "Minor bearish BOS",
                                 "SL above swept high",
