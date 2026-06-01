@@ -139,6 +139,15 @@ class XauSniperBot:
             continuation_confirmations[_zone_key(continuation_zone)] = (
                 continuation_confirmation
             )
+        m1_continuation = self._m1_continuation_candidate(
+            m1,
+            direction_for_bias,
+            current_price,
+        )
+        if m1_continuation is not None:
+            zone, confirmation = m1_continuation
+            active_zones = active_zones + [zone]
+            continuation_confirmations[_zone_key(zone)] = confirmation
 
         if not active_zones:
             self._write_no_trade(
@@ -377,6 +386,30 @@ class XauSniperBot:
             direction,
             current_price,
         )
+
+    def _m1_continuation_candidate(
+        self,
+        m1: pd.DataFrame,
+        direction: Direction | None,
+        current_price: float,
+    ) -> tuple[Zone, ConfirmationSnapshot] | None:
+        if direction is None:
+            return None
+        zone = self.scanner.continuation_zone(m1, direction, current_price)
+        if zone is None:
+            return None
+        confirmation = ConfirmationSnapshot(
+            symbol=self.config.symbol,
+            timeframe="M1",
+            direction=direction,
+            confirmed=True,
+            updated_at=datetime.now(timezone.utc),
+            reason=[
+                f"{zone.timeframe} continuation zone is active",
+                "Using local continuation pullback because M15 retest is far",
+            ],
+        )
+        return zone, confirmation
 
     def _active_zones(self, zones: list[Zone], now: datetime) -> list[Zone]:
         expire_after = self.config.zone_expire_after_hours

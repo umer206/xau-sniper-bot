@@ -15,6 +15,7 @@ class ExternalAnalyzer:
         self.config = config
         self._module: ModuleType | None = None
         self._last_groq_call_at: datetime | None = None
+        self._last_groq_analysis: ExternalAnalysis | None = None
 
     def analyze(self, use_groq: bool = False) -> ExternalAnalysis | None:
         if not self.config.external_analyzer_enabled:
@@ -97,6 +98,12 @@ class ExternalAnalyzer:
         local_analysis: ExternalAnalysis,
     ) -> ExternalAnalysis:
         if self._groq_in_cooldown():
+            if self._last_groq_analysis is not None:
+                return _replace_external(
+                    self._last_groq_analysis,
+                    analyzed_at=datetime.now(timezone.utc),
+                    reason=local_analysis.reason + ["Groq reused: cooldown active"],
+                )
             return _replace_external(
                 local_analysis,
                 direction="ERROR",
@@ -125,7 +132,7 @@ class ExternalAnalyzer:
             tradeable = direction in {"LONG", "SHORT"}
             self._last_groq_call_at = datetime.now(timezone.utc)
             summary = _groq_summary(groq_text)
-            return _replace_external(
+            groq_analysis = _replace_external(
                 local_analysis,
                 direction=direction,
                 tradeable=tradeable,
@@ -134,6 +141,8 @@ class ExternalAnalyzer:
                 groq_called=True,
                 groq_summary=summary,
             )
+            self._last_groq_analysis = groq_analysis
+            return groq_analysis
         except Exception as exc:
             return _replace_external(
                 local_analysis,

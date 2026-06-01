@@ -65,3 +65,50 @@ class M1SniperScannerTests(TestCase):
         self.assertEqual(trigger.target_1.price, 2008.00)
         self.assertEqual(trigger.take_profit, 2008.00)
         self.assertGreaterEqual(trigger.risk_reward, config.risk_reward_floor)
+
+    def test_sell_continuation_zone_uses_near_m1_pullback(self) -> None:
+        scanner = M1SniperScanner(BotConfig(symbol="XAUUSD"))
+        frame = _bearish_m1_frame()
+
+        zone = scanner.continuation_zone(
+            frame,
+            Direction.SELL,
+            current_price=float(frame.iloc[-1]["close"]),
+        )
+
+        self.assertIsNotNone(zone)
+        assert zone is not None
+        self.assertEqual(zone.direction, Direction.SELL)
+        self.assertEqual(zone.timeframe, "M1")
+        self.assertEqual(zone.setup_type, "continuation")
+        self.assertLess(zone.low, zone.high)
+
+
+def _bearish_m1_frame() -> pd.DataFrame:
+    rows = []
+    times = pd.date_range("2026-01-01 10:00", periods=80, freq="min", tz="UTC")
+    price = 101.0
+    for timestamp in times:
+        rows.append(
+            {
+                "time": timestamp,
+                "open": price,
+                "high": price + 0.10,
+                "low": price - 0.12,
+                "close": price - 0.05,
+                "tick_volume": 100,
+            }
+        )
+        price -= 0.02
+
+    rows[70].update({"open": 99.20, "high": 99.35, "low": 98.80, "close": 98.90})
+    rows[71].update({"open": 98.90, "high": 99.05, "low": 98.20, "close": 98.30})
+    rows[72].update({"open": 98.30, "high": 98.40, "low": 97.80, "close": 97.90})
+    rows[73].update({"open": 97.90, "high": 98.15, "low": 97.70, "close": 98.00})
+    rows[74].update({"open": 98.00, "high": 98.25, "low": 97.60, "close": 97.70})
+    rows[75].update({"open": 97.70, "high": 97.85, "low": 97.10, "close": 97.20})
+    rows[76].update({"open": 97.20, "high": 97.35, "low": 96.80, "close": 96.90})
+    rows[77].update({"open": 96.90, "high": 97.05, "low": 96.50, "close": 96.65})
+    rows[78].update({"open": 96.65, "high": 96.80, "low": 96.20, "close": 96.35})
+    rows[79].update({"open": 96.35, "high": 96.55, "low": 96.00, "close": 96.10})
+    return pd.DataFrame(rows)

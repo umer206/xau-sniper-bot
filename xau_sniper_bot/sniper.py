@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .config import BotConfig
-from .indicators import atr, body_size, lower_wick, upper_wick
+from .indicators import atr, body_size, ema, lower_wick, upper_wick
 from .models import Direction, SniperTrigger, TargetLevel, Zone
 
 
@@ -33,6 +33,27 @@ class M1SniperScanner:
         if zone.direction == Direction.BUY:
             return self._scan_buy(frame, zone, target_levels or [], m1_atr)
         return self._scan_sell(frame, zone, target_levels or [], m1_atr)
+
+    def continuation_zone(
+        self,
+        df: pd.DataFrame,
+        direction: Direction,
+        current_price: float,
+    ) -> Zone | None:
+        if not self.config.continuation_mode_enabled or len(df) < 60:
+            return None
+
+        frame = df.copy()
+        frame["atr"] = atr(frame, self.config.atr_period)
+        frame["ema20"] = ema(frame["close"], 20)
+        latest_atr = _latest_atr(frame)
+        if not self._atr_allowed(latest_atr):
+            return None
+
+        recent = frame.tail(max(self.config.continuation_lookback_bars, 20))
+        if direction == Direction.BUY:
+            return self._buy_continuation_zone(recent, current_price, latest_atr)
+        return self._sell_continuation_zone(recent, current_price, latest_atr)
 
     def _scan_buy(
         self,
@@ -160,6 +181,82 @@ class M1SniperScanner:
             ],
         )
 
+    def _buy_continuation_zone(
+        self,
+        recent: pd.DataFrame,
+        current_price: float,
+        latest_atr: float,
+    ) -> Zone | None:
+        last = recent.iloc[-1]
+        above_ema = float(last["close"]) > float(last["ema20"])
+        bullish_displacement = any(
+            self._bullish_displacement(row, latest_atr)
+            for _, row in recent.tail(self.config.continuation_displacement_lookback).iterrows()
+        )
+        broke_high = _recent_m1_breakout(recent)
+        if not (above_ema and (bullish_displacement or broke_high)):
+            return None
+
+        pullback = recent.tail(self.config.continuation_pullback_lookback)
+        pullback_low = float(pullback["low"].min())
+        if current_price - pullback_low > self.config.continuation_max_zone_distance_points:
+            return None
+
+        width = latest_atr * self.config.continuation_zone_atr_width
+        return Zone(
+            symbol=self.config.symbol,
+            direction=Direction.BUY,
+            timeframe="M1",
+            low=pullback_low - width,
+            high=pullback_low + max(width * 0.35, 0.01),
+            anchor_time=_to_datetime(pullback.iloc[pullback["low"].argmin()]["time"]),
+            created_at=_to_datetime(last["time"]),
+            reason=[
+                "M1 bullish continuation pullback zone",
+                "M1 momentum is above EMA20 with breakout/displacement",
+            ],
+            strength=0.75,
+            setup_type="continuation",
+        )
+
+    def _sell_continuation_zone(
+        self,
+        recent: pd.DataFrame,
+        current_price: float,
+        latest_atr: float,
+    ) -> Zone | None:
+        last = recent.iloc[-1]
+        below_ema = float(last["close"]) < float(last["ema20"])
+        bearish_displacement = any(
+            self._bearish_displacement(row, latest_atr)
+            for _, row in recent.tail(self.config.continuation_displacement_lookback).iterrows()
+        )
+        broke_low = _recent_m1_breakdown(recent)
+        if not (below_ema and (bearish_displacement or broke_low)):
+            return None
+
+        pullback = recent.tail(self.config.continuation_pullback_lookback)
+        pullback_high = float(pullback["high"].max())
+        if pullback_high - current_price > self.config.continuation_max_zone_distance_points:
+            return None
+
+        width = latest_atr * self.config.continuation_zone_atr_width
+        return Zone(
+            symbol=self.config.symbol,
+            direction=Direction.SELL,
+            timeframe="M1",
+            low=pullback_high - max(width * 0.35, 0.01),
+            high=pullback_high + width,
+            anchor_time=_to_datetime(pullback.iloc[pullback["high"].argmax()]["time"]),
+            created_at=_to_datetime(last["time"]),
+            reason=[
+                "M1 bearish continuation pullback zone",
+                "M1 momentum is below EMA20 with breakdown/displacement",
+            ],
+            strength=0.75,
+            setup_type="continuation",
+        )
+
     def _find_buy_sweep(self, frame: pd.DataFrame) -> tuple[int, float] | None:
         search = frame.tail(8)
         for index in reversed(search.index.tolist()):
@@ -260,6 +357,33 @@ def _target_pair(
 
 def _recent_zone_touch(df: pd.DataFrame, zone: Zone) -> bool:
     return bool(((df["low"] <= zone.high) & (df["high"] >= zone.low)).any())
+
+
+def _latest_atr(frame: pd.DataFrame) -> float:
+    valid_atr = frame["atr"].dropna()
+    if valid_atr.empty:
+        return 0.0
+    return float(valid_atr.iloc[-1])
+
+
+def _recent_m1_breakout(frame: pd.DataFrame) -> bool:
+    if len(frame) < 12:
+        return False
+    recent = frame.tail(6)
+    prior = frame.iloc[:-6].tail(12)
+    if prior.empty:
+        return False
+    return bool((recent["close"] > float(prior["high"].max())).any())
+
+
+def _recent_m1_breakdown(frame: pd.DataFrame) -> bool:
+    if len(frame) < 12:
+        return False
+    recent = frame.tail(6)
+    prior = frame.iloc[:-6].tail(12)
+    if prior.empty:
+        return False
+    return bool((recent["close"] < float(prior["low"].min())).any())
 
 
 def _to_datetime(value: object):

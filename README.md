@@ -190,8 +190,8 @@ Repeated Pushover scan summaries for the same setup are limited by:
 ## Continuation Mode
 
 The original strategy waited for price to retest an M15 supply/demand zone. When
-`continuation_mode_enabled` is true, the bot can also build a nearer M5
-continuation pullback zone after a confirmed breakdown or breakout.
+`continuation_mode_enabled` is true, the bot can also build nearer M5 or M1
+continuation pullback zones after a confirmed breakdown or breakout.
 
 For bearish continuation, the bot needs:
 
@@ -204,6 +204,9 @@ For bearish continuation, the bot needs:
 
 This lets the bot participate in clean continuation sells without chasing price
 while it is still far below the original M15 supply zone.
+If the M15 retest zone is far away, the M1 continuation layer can show a nearer
+local pullback zone, but execution still requires the M1 sweep/rejection/BOS and
+volume checks.
 
 ## Second AI / Groq
 
