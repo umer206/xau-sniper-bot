@@ -16,6 +16,7 @@ from .logging_setup import tee_console_to_log
 from .models import (
     Bias,
     BiasSnapshot,
+    ConfirmationSnapshot,
     Direction,
     ExternalAnalysis,
     MarketContext,
@@ -127,10 +128,23 @@ class XauSniperBot:
             current_spread,
         )
         active_zones = self._active_zones(self.state.zones, now)
+        continuation_confirmations: dict[str, ConfirmationSnapshot] = {}
+        continuation = self._continuation_candidate(
+            direction_for_bias,
+            current_price,
+        )
+        if continuation is not None:
+            continuation_zone, continuation_confirmation = continuation
+            active_zones = active_zones + [continuation_zone]
+            continuation_confirmations[_zone_key(continuation_zone)] = (
+                continuation_confirmation
+            )
+
         if not active_zones:
             self._write_no_trade(
                 (
-                    "No fresh M15 setup zones remain; old zones are ignored after "
+                    "No fresh M15 setup zones or M5 continuation zones remain; "
+                    "old zones are ignored after "
                     f"{self.config.zone_expire_after_hours:.0f}h."
                 ),
                 current_price=current_price,
@@ -158,7 +172,9 @@ class XauSniperBot:
             if self.state.m5 is None:
                 wait_reasons.append("M5 confirmation data is not available yet.")
                 continue
-            confirmation = self.confirmation_engine.confirm(self.state.m5, zone)
+            confirmation = continuation_confirmations.get(_zone_key(zone))
+            if confirmation is None:
+                confirmation = self.confirmation_engine.confirm(self.state.m5, zone)
             if not confirmation.confirmed:
                 wait_reasons.append(
                     f"M5 not confirmed for {zone.low:.2f}-{zone.high:.2f}: "
@@ -173,8 +189,13 @@ class XauSniperBot:
             )
             trigger = self.scanner.scan(m1, zone, targets)
             if trigger is None:
+                setup_name = (
+                    "M1 continuation trigger"
+                    if zone.setup_type == "continuation"
+                    else "M1 sniper trigger"
+                )
                 wait_reasons.append(
-                    f"M1 sniper trigger incomplete for {zone.low:.2f}-{zone.high:.2f}; "
+                    f"{setup_name} incomplete for {zone.low:.2f}-{zone.high:.2f}; "
                     "waiting for liquidity sweep, rejection, CHOCH/BOS, and displacement."
                 )
                 continue
@@ -194,7 +215,7 @@ class XauSniperBot:
                 )
                 continue
 
-            external_analysis = self.external_analyzer.analyze()
+            external_analysis = self.external_analyzer.analyze(use_groq=True)
             validation = self.validator.validate(
                 self.state.bias,
                 zone,
@@ -344,6 +365,19 @@ class XauSniperBot:
             now=now,
         )
 
+    def _continuation_candidate(
+        self,
+        direction: Direction | None,
+        current_price: float,
+    ) -> tuple[Zone, ConfirmationSnapshot] | None:
+        if direction is None or self.state.m5 is None:
+            return None
+        return self.confirmation_engine.continuation_candidate(
+            self.state.m5,
+            direction,
+            current_price,
+        )
+
     def _active_zones(self, zones: list[Zone], now: datetime) -> list[Zone]:
         expire_after = self.config.zone_expire_after_hours
         if expire_after <= 0:
@@ -463,6 +497,13 @@ def _zone_distance(zone: Zone, current_price: float) -> float:
     if current_price > zone.high:
         return current_price - zone.high
     return zone.low - current_price
+
+
+def _zone_key(zone: Zone) -> str:
+    return (
+        f"{zone.setup_type}:{zone.direction.value}:"
+        f"{zone.timeframe}:{zone.low:.2f}:{zone.high:.2f}"
+    )
 
 
 def _scan_summary_key(

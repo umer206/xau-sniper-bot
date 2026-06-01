@@ -40,6 +40,7 @@ class Zone:
     created_at: datetime
     reason: list[str]
     strength: float = 0.0
+    setup_type: str = "retest"
 
     @property
     def midpoint(self) -> float:
@@ -112,6 +113,8 @@ class ExternalAnalysis:
     analyzed_at: datetime
     reason: list[str]
     details: list[str]
+    groq_called: bool = False
+    groq_summary: str | None = None
 
 
 @dataclass(frozen=True)

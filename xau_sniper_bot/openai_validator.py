@@ -79,8 +79,8 @@ class OpenAIValidator:
                         "rules": {
                             "buy": [
                                 "H1/M15 bullish bias",
-                                "Price in demand/support",
-                                "M5 confirms bullish continuation after zone interaction",
+                                "Price in demand/support or M5 continuation pullback zone",
+                                "M5 confirms bullish retest or continuation context",
                                 "M1 sell-side sweep",
                                 "Liquidity proxies confirm spread and tick volume",
                                 "Close back above swept low",
@@ -90,8 +90,8 @@ class OpenAIValidator:
                             ],
                             "sell": [
                                 "H1/M15 bearish bias",
-                                "Price in supply/resistance",
-                                "M5 confirms bearish continuation after zone interaction",
+                                "Price in supply/resistance or M5 continuation pullback zone",
+                                "M5 confirms bearish retest or continuation context",
                                 "M1 buy-side sweep",
                                 "Liquidity proxies confirm spread and tick volume",
                                 "Close back below swept high",

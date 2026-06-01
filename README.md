@@ -187,6 +187,39 @@ Repeated Pushover scan summaries for the same setup are limited by:
 "pushover_scan_summary_min_interval_minutes": 15
 ```
 
+## Continuation Mode
+
+The original strategy waited for price to retest an M15 supply/demand zone. When
+`continuation_mode_enabled` is true, the bot can also build a nearer M5
+continuation pullback zone after a confirmed breakdown or breakout.
+
+For bearish continuation, the bot needs:
+
+- H1 bearish bias
+- M5 close below EMA20 and EMA50
+- Recent M5 bearish displacement
+- Recent M5 break of minor structure downward
+- M1 pullback into the M5 continuation zone
+- M1 buy-side sweep, rejection, bearish BOS, displacement, and volume confirmation
+
+This lets the bot participate in clean continuation sells without chasing price
+while it is still far below the original M15 supply zone.
+
+## Second AI / Groq
+
+Scan summaries still use the second analyzer's local SMC score. Groq is only
+called on near-valid candidate setups before execution.
+
+```json
+"external_analyzer_enabled": true,
+"external_analyzer_use_groq": true,
+"external_analyzer_groq_min_interval_minutes": 5
+```
+
+Set `GROQ_API_KEY` in your environment, or keep using the key configured by the
+external analyzer script. If Groq is required and fails on a final candidate, the
+bot blocks execution instead of falling back silently.
+
 Disable OpenAI from the CLI:
 
 ```powershell

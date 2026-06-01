@@ -20,7 +20,7 @@ if (Test-Path $EnvFile) {
     }
 }
 
-foreach ($name in @("PUSHOVER_APP_TOKEN", "PUSHOVER_USER_KEY", "OPENAI_API_KEY")) {
+foreach ($name in @("PUSHOVER_APP_TOKEN", "PUSHOVER_USER_KEY", "OPENAI_API_KEY", "GROQ_API_KEY")) {
     if (-not (Get-Item -Path "Env:$name" -ErrorAction SilentlyContinue).Value) {
         $userValue = [Environment]::GetEnvironmentVariable($name, "User")
         if ($userValue) {
@@ -33,4 +33,3 @@ foreach ($name in @("PUSHOVER_APP_TOKEN", "PUSHOVER_USER_KEY", "OPENAI_API_KEY")
         }
     }
 }
-

@@ -101,7 +101,7 @@ class OutputWriter:
 def format_trade_setup(signal: Signal) -> str:
     trigger = signal.trigger
     direction = "LONG" if trigger.direction == Direction.BUY else "SHORT"
-    zone_name = _zone_name(trigger.direction)
+    zone_name = _zone_name(signal.zone)
     choch = _choch_name(trigger.direction)
     stop_side = "below" if trigger.direction == Direction.BUY else "above"
     swept_side = (
@@ -182,8 +182,12 @@ def _target_line(target: TargetLevel) -> str:
     return f"{target.price:.2f}, {target.label}{suffix}."
 
 
-def _zone_name(direction: Direction) -> str:
-    if direction == Direction.BUY:
+def _zone_name(zone: Zone) -> str:
+    if zone.setup_type == "continuation":
+        if zone.direction == Direction.BUY:
+            return "bullish continuation pullback zone"
+        return "bearish continuation pullback zone"
+    if zone.direction == Direction.BUY:
         return "bullish OB / demand zone"
     return "bearish OB / supply zone"
 
@@ -197,13 +201,17 @@ def _choch_name(direction: Direction) -> str:
 def _confluence(signal: Signal) -> str:
     direction_word = "Bullish" if signal.trigger.direction == Direction.BUY else "Bearish"
     zone_word = (
-        "demand/support"
-        if signal.trigger.direction == Direction.BUY
-        else "supply/resistance"
+        "continuation pullback"
+        if signal.zone.setup_type == "continuation"
+        else (
+            "demand/support"
+            if signal.trigger.direction == Direction.BUY
+            else "supply/resistance"
+        )
     )
     pieces = [
         f"{direction_word} H1 bias",
-        f"M15 {zone_word} zone",
+        f"{signal.zone.timeframe} {zone_word} zone",
         "M5 confirmation",
         "M1 liquidity sweep",
         "rejection candle",
@@ -246,15 +254,15 @@ def _zone_wait_text(
     parts: list[str] = []
     if aligned_zones:
         zone = _nearest_zone(aligned_zones, current_price)
-        direction = "buy" if zone.direction == Direction.BUY else "sell"
+        zone_label = _zone_wait_label(zone)
         if current_price is not None and zone.low <= current_price <= zone.high:
             parts.append(
-                f"Aligned plan: price is inside the {direction} zone "
+                f"Aligned plan: price is inside the {zone_label} "
                 f"{zone.low:.2f}-{zone.high:.2f}."
             )
         else:
             parts.append(
-                f"Aligned plan: waiting for price to enter the {direction} zone "
+                f"Aligned plan: waiting for price to enter the {zone_label} "
                 f"{zone.low:.2f}-{zone.high:.2f}."
             )
     else:
@@ -287,6 +295,13 @@ def _nearest_zone(zones: list[Zone], current_price: float | None) -> Zone:
     return min(zones, key=lambda zone: abs(zone.midpoint - current_price))
 
 
+def _zone_wait_label(zone: Zone) -> str:
+    direction = "buy" if zone.direction == Direction.BUY else "sell"
+    if zone.setup_type == "continuation":
+        return f"{direction} continuation zone"
+    return f"{direction} zone"
+
+
 def _zone_context_line(
     zones: list[Zone],
     current_price: float | None,
@@ -300,12 +315,12 @@ def _zone_context_line(
     if zone is None:
         return "Zone      : No active aligned zone."
 
-    direction = "buy" if zone.direction == Direction.BUY else "sell"
+    zone_label = _zone_wait_label(zone)
     distance_text = _distance_text(zone, current_price, near_threshold_points)
     age_hours = _zone_age_hours(zone, now)
     age_status = _age_status(age_hours, stale_after_hours, expire_after_hours)
     return (
-        f"Zone      : nearest aligned {direction} zone "
+        f"Zone      : nearest aligned {zone_label} "
         f"{zone.low:.2f}-{zone.high:.2f}; {distance_text}; "
         f"age {_age_label(age_hours)} ({age_status})."
     )
@@ -385,10 +400,8 @@ def _external_line(signal: Signal) -> str:
     if analysis.direction == "ERROR":
         return f"Second AI : ERROR - {'; '.join(analysis.reason)}"
     status = "ALIGNED" if _external_direction_matches(signal) else "NOT ALIGNED"
-    return (
-        f"Second AI : {analysis.direction} ({status}) | "
-        f"Bull {analysis.bull_score} / Bear {analysis.bear_score}."
-    )
+    source = "Groq" if analysis.groq_called else "Local"
+    return _external_summary_line(analysis, f"{source} {status}")
 
 
 def _external_no_trade_line(analysis: ExternalAnalysis | None) -> str:
@@ -397,9 +410,15 @@ def _external_no_trade_line(analysis: ExternalAnalysis | None) -> str:
     if analysis.direction == "ERROR":
         return f"Second AI : ERROR - {'; '.join(analysis.reason)}"
     status = "TRADEABLE" if analysis.tradeable else "NO TRADE"
+    source = "Groq" if analysis.groq_called else "Local"
+    return _external_summary_line(analysis, f"{source} {status}")
+
+
+def _external_summary_line(analysis: ExternalAnalysis, status: str) -> str:
+    summary = f" | {analysis.groq_summary}" if analysis.groq_summary else ""
     return (
         f"Second AI : {analysis.direction} ({status}) | "
-        f"Bull {analysis.bull_score} / Bear {analysis.bear_score}."
+        f"Bull {analysis.bull_score} / Bear {analysis.bear_score}.{summary}"
     )
 
 

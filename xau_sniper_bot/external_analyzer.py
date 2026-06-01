@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
 
@@ -13,8 +14,9 @@ class ExternalAnalyzer:
     def __init__(self, config: BotConfig) -> None:
         self.config = config
         self._module: ModuleType | None = None
+        self._last_groq_call_at: datetime | None = None
 
-    def analyze(self) -> ExternalAnalysis | None:
+    def analyze(self, use_groq: bool = False) -> ExternalAnalysis | None:
         if not self.config.external_analyzer_enabled:
             return None
 
@@ -28,7 +30,7 @@ class ExternalAnalyzer:
             smc_10m = module.detect_smc(data["candles"].get("10m", []))
             smc_1m = module.detect_smc(data["candles"].get("1m", []))
             confluence = module.score_confluence(smc_10m, smc_1m)
-            return ExternalAnalysis(
+            analysis = ExternalAnalysis(
                 name="CodexAlyzer Groq/SMC",
                 path=str(path),
                 direction=str(confluence.get("bias", "NO TRADE")),
@@ -45,6 +47,9 @@ class ExternalAnalyzer:
                 ],
                 details=_details_from_smc(smc_10m, smc_1m),
             )
+            if use_groq and self.config.external_analyzer_use_groq:
+                return self._with_groq(module, data, confluence, analysis)
+            return analysis
         except Exception as exc:
             return self._error(f"External analyzer failed: {exc}")
 
@@ -84,6 +89,74 @@ class ExternalAnalyzer:
             details=[],
         )
 
+    def _with_groq(
+        self,
+        module: ModuleType,
+        data: dict,
+        confluence: dict,
+        local_analysis: ExternalAnalysis,
+    ) -> ExternalAnalysis:
+        if self._groq_in_cooldown():
+            return _replace_external(
+                local_analysis,
+                direction="ERROR",
+                tradeable=False,
+                reason=local_analysis.reason + ["Groq skipped: cooldown active"],
+            )
+
+        api_key = self._groq_api_key(module)
+        if not api_key:
+            return _replace_external(
+                local_analysis,
+                direction="ERROR",
+                tradeable=False,
+                reason=local_analysis.reason + ["Groq skipped: GROQ_API_KEY is not set"],
+            )
+
+        try:
+            prompt = module.build_prompt(data, confluence)
+            client = module.Groq(api_key=api_key)
+            groq_text = module.ask_groq(client, prompt)
+            parsed = module.parse_last_trade(groq_text)
+            if hasattr(module, "last_trade"):
+                module.last_trade = parsed
+
+            direction = _normalize_groq_direction(parsed.get("direction"))
+            tradeable = direction in {"LONG", "SHORT"}
+            self._last_groq_call_at = datetime.now(timezone.utc)
+            summary = _groq_summary(groq_text)
+            return _replace_external(
+                local_analysis,
+                direction=direction,
+                tradeable=tradeable,
+                reason=local_analysis.reason + [f"Groq verdict: {direction}"],
+                details=(local_analysis.details + [summary])[-8:],
+                groq_called=True,
+                groq_summary=summary,
+            )
+        except Exception as exc:
+            return _replace_external(
+                local_analysis,
+                direction="ERROR",
+                tradeable=False,
+                reason=local_analysis.reason + [f"Groq failed: {exc}"],
+            )
+
+    def _groq_in_cooldown(self) -> bool:
+        if self._last_groq_call_at is None:
+            return False
+        cooldown = timedelta(minutes=self.config.external_analyzer_groq_min_interval_minutes)
+        return datetime.now(timezone.utc) - self._last_groq_call_at < cooldown
+
+    def _groq_api_key(self, module: ModuleType) -> str:
+        configured = self.config.external_analyzer_groq_api_key.strip()
+        if configured:
+            return configured
+        env_key = os.getenv("GROQ_API_KEY", "").strip()
+        if env_key:
+            return env_key
+        return str(getattr(module, "GROQ_API_KEY", "")).strip()
+
 
 def _details_from_smc(smc_10m: dict, smc_1m: dict) -> list[str]:
     details: list[str] = []
@@ -105,3 +178,40 @@ def _details_from_smc(smc_10m: dict, smc_1m: dict) -> list[str]:
             for value in smc.get(key, [])[-2:]:
                 details.append(f"{label} {name}: {value}")
     return details[-8:]
+
+
+def _replace_external(analysis: ExternalAnalysis, **changes: object) -> ExternalAnalysis:
+    values = {
+        "name": analysis.name,
+        "path": analysis.path,
+        "direction": analysis.direction,
+        "tradeable": analysis.tradeable,
+        "bull_score": analysis.bull_score,
+        "bear_score": analysis.bear_score,
+        "analyzed_at": analysis.analyzed_at,
+        "reason": analysis.reason,
+        "details": analysis.details,
+        "groq_called": analysis.groq_called,
+        "groq_summary": analysis.groq_summary,
+    }
+    values.update(changes)
+    return ExternalAnalysis(**values)
+
+
+def _normalize_groq_direction(value: object) -> str:
+    text = str(value or "NO TRADE").upper()
+    if "LONG" in text:
+        return "LONG"
+    if "SHORT" in text:
+        return "SHORT"
+    return "NO TRADE"
+
+
+def _groq_summary(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    interesting = [
+        line
+        for line in lines
+        if line.startswith(("Direction", "Entry", "Stop Loss", "Target 1", "Warning"))
+    ]
+    return "; ".join(interesting[:3]) or "Groq analysis returned"

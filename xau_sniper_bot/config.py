@@ -35,6 +35,12 @@ class BotConfig:
     min_m1_atr: float = 0.0
     max_m1_atr: float = 0.0
     risk_reward_floor: float = 1.25
+    continuation_mode_enabled: bool = True
+    continuation_lookback_bars: int = 24
+    continuation_displacement_lookback: int = 8
+    continuation_pullback_lookback: int = 12
+    continuation_zone_atr_width: float = 0.80
+    continuation_max_zone_distance_points: float = 20.0
     liquidity_filter_enabled: bool = True
     liquidity_session_filter_enabled: bool = False
     max_liquidity_spread: float = 0.50
@@ -48,6 +54,9 @@ class BotConfig:
     external_analyzer_enabled: bool = False
     external_analyzer_path: str = r"C:\2026\CodexAlyzer\main.py"
     external_analyzer_require_alignment: bool = True
+    external_analyzer_use_groq: bool = False
+    external_analyzer_groq_min_interval_minutes: int = 5
+    external_analyzer_groq_api_key: str = ""
     trade_execution_enabled: bool = False
     trade_volume: float = 0.01
     trade_take_profit_target: int = 1
