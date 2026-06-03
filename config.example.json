@@ -42,7 +42,7 @@
   "liquidity_pool_lookback": 50,
   "equal_level_tolerance": 0.30,
   "external_analyzer_enabled": false,
-  "external_analyzer_path": "C:\\2026\\CodexAlyzer\\main.py",
+  "external_analyzer_path": "",
   "external_analyzer_require_alignment": true,
   "external_analyzer_use_groq": false,
   "external_analyzer_groq_min_interval_minutes": 5,

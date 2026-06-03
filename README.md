@@ -1,13 +1,13 @@
 # XAU Sniper Bot
 
-Multi-timeframe MT5 scanner for Gold setups:
+Multi-timeframe MetaTrader 5 scanner and execution assistant for XAUUSD setups.
 
 - H1: directional bias
 - M15: demand and supply zone map
 - M5: confirmation after zone interaction
 - M1: sniper trigger timing
-- OpenAI: final validation only after zone interaction, M5 confirmation, and a near-valid M1 trigger
-- Optional external analyzer: one-shot SMC confluence from `C:\2026\CodexAlyzer\main.py`
+- OpenAI: optional final validation after a near-valid setup forms
+- Optional external analyzer: local SMC confluence and Groq-backed validation
 
 The bot is dry-run by default. It prints signals to the console and writes JSONL signal records locally.
 
@@ -73,16 +73,16 @@ PowerShell helpers are available too:
 .\scripts\watch-bot-status.ps1
 ```
 
-For access from office laptops or iOS, see [REMOTE_ACCESS.md](REMOTE_ACCESS.md).
+For generic remote-operation guidance, see [REMOTE_ACCESS.md](REMOTE_ACCESS.md).
 
 ## Pushover Alerts
 
-For mobile, use native Pushover notifications instead of reading a terminal.
+Use Pushover notifications for concise trade, execution, and bot-status alerts.
 
-1. Install Pushover on iPhone/iPad.
+1. Install Pushover where alerts should be received.
 2. Create a Pushover application and copy its API token.
 3. Copy your Pushover user key.
-4. Set environment variables on the home MT5 laptop:
+4. Set environment variables on the MT5 host:
 
 ```powershell
 $env:PUSHOVER_APP_TOKEN="your_app_token"
@@ -107,8 +107,7 @@ By default, the bot alerts for trade setups and bot start/stop/crash events.
 It also sends one scan-summary setup block after each scan. Repeated no-trade
 spam remains off unless `pushover_alert_no_trade` is set to `true`.
 
-If the external analyzer is enabled, make sure `groq` is installed too because
-`C:\2026\CodexAlyzer\main.py` imports it:
+If the external analyzer is enabled and uses Groq, make sure `groq` is installed:
 
 ```powershell
 pip install groq
@@ -219,9 +218,9 @@ called on near-valid candidate setups before execution.
 "external_analyzer_groq_min_interval_minutes": 5
 ```
 
-Set `GROQ_API_KEY` in your environment, or keep using the key configured by the
-external analyzer script. If Groq is required and fails on a final candidate, the
-bot blocks execution instead of falling back silently.
+Set `GROQ_API_KEY` in your environment. Keep API keys out of source-controlled
+files. If Groq is required and fails on a final candidate, the bot blocks
+execution instead of falling back silently.
 
 Disable OpenAI from the CLI:
 

@@ -1,190 +1,122 @@
-# Remote Terminal Access
+# Remote Operations
 
-This setup keeps MT5 and the execution bot on the home laptop, then lets other
-devices view/control the same project terminal remotely.
+This guide describes a generic remote-operations pattern for running the bot on
+one primary MetaTrader 5 host while viewing logs and status from separate client
+machines.
 
-Recommended stack:
+## Recommended Architecture
 
-- VS Code Remote Tunnel for the remote project and terminal.
-- `logs/bot.log` as the shared live terminal feed.
-- Pushover for readable iOS trade/status notifications.
-- Tailscale as a backup access layer.
-- MT5 mobile only for monitoring/closing trades, not for running the bot.
+- Run MetaTrader 5 and the bot on one primary host.
+- Use the bot log file as the shared terminal feed.
+- Use the status heartbeat file to confirm the bot is running.
+- Use notification delivery for trade, execution, and health alerts.
+- Avoid running multiple live bot instances against the same account.
 
-## Home MT5 Laptop
+## Primary MT5 Host
 
-Do this on the laptop that has MT5 installed and logged in.
+Prepare the machine that has MetaTrader 5 installed and logged in.
 
-1. Install VS Code.
-
-2. Confirm the VS Code CLI is available:
-
-```powershell
-code --version
-```
-
-If PowerShell cannot find `code`, reinstall VS Code with "Add to PATH" enabled.
-
-3. Install Python dependencies:
+1. Install dependencies:
 
 ```powershell
-cd C:\Users\DELL\OneDrive\Documents\XAUAlayzer
 pip install -r requirements.txt
 ```
 
-4. Confirm local dry-run works:
+2. Copy the example configuration:
+
+```powershell
+Copy-Item config.example.json config.json
+```
+
+3. Keep secrets outside Git. Use a local `.env` file or environment variables:
+
+```text
+OPENAI_API_KEY=
+GROQ_API_KEY=
+PUSHOVER_APP_TOKEN=
+PUSHOVER_USER_KEY=
+```
+
+4. Confirm a dry-run scan works:
 
 ```powershell
 .\scripts\run-once.ps1
 ```
 
-5. Start the tunnel once interactively:
-
-```powershell
-.\scripts\start-vscode-tunnel.ps1
-```
-
-Sign in when prompted. Use the same GitHub or Microsoft account on other
-devices.
-
-6. After the tunnel works, install it as a background service:
-
-```powershell
-.\scripts\install-vscode-tunnel-service.ps1
-```
-
-This keeps the VS Code tunnel available after restarts, as long as the laptop is
-awake and online.
-
-7. Start the bot in dry-run mode:
+5. Start continuous dry-run mode:
 
 ```powershell
 .\scripts\start-bot-dry-run.ps1
 ```
 
-For live execution only after testing:
+6. Use live execution only after configuration and dry-run behavior are verified:
 
 ```powershell
 .\scripts\start-bot-live.ps1
 ```
 
-## Office Laptop 1 and Laptop 2
+## Remote Client Access
 
-Option A: VS Code Desktop
+Remote clients should connect to the primary host instead of running separate
+bot copies. Common options include:
 
-1. Install VS Code.
-2. Install the `Remote - Tunnels` extension.
-3. Sign in with the same GitHub or Microsoft account.
-4. Run `Remote Tunnels: Connect to Tunnel` from the Command Palette.
-5. Select `xau-mt5-home`.
-6. Open:
+- A secure remote development tunnel.
+- A private network overlay.
+- Remote desktop software approved for the environment.
 
-```text
-C:\Users\DELL\OneDrive\Documents\XAUAlayzer
-```
-
-Useful terminal commands:
+Once connected to the project folder on the primary host, useful commands are:
 
 ```powershell
 .\scripts\watch-bot-log.ps1
 .\scripts\watch-bot-status.ps1
 .\scripts\run-once.ps1
-.\scripts\start-bot-dry-run.ps1
-.\scripts\start-bot-live.ps1
 ```
 
-Option B: Browser
+Avoid starting multiple live bot processes. If live mode is already running,
+use the log and status watchers for monitoring.
 
-Open:
+## Notifications
+
+Pushover can send concise alerts without requiring a remote terminal session.
+Configure credentials with environment variables or a local `.env` file:
 
 ```text
-https://vscode.dev
+PUSHOVER_APP_TOKEN=
+PUSHOVER_USER_KEY=
 ```
 
-Sign in, connect to the tunnel, and open the same project folder.
-
-## iPhone / iPad
-
-For day-to-day mobile use, prefer Pushover notifications plus MT5 mobile.
-Use Safari/VS Code only when you need remote commands.
-
-Browser fallback:
-
-```text
-https://vscode.dev
-```
-
-Sign in with the same account and connect to `xau-mt5-home`.
-
-Best iOS commands:
-
-```powershell
-.\scripts\watch-bot-status.ps1
-.\scripts\watch-bot-log.ps1
-.\scripts\run-once.ps1
-```
-
-Avoid typing long live-execution commands from iOS unless necessary. Use MT5
-mobile to monitor or manually close trades.
-
-## Pushover Mobile Alerts
-
-Pushover gives readable native iOS notifications without opening a web UI.
-
-1. Install Pushover on iPhone/iPad.
-2. Register a Pushover application.
-3. On the home laptop, set:
-
-```powershell
-$env:PUSHOVER_APP_TOKEN="your_app_token"
-$env:PUSHOVER_USER_KEY="your_user_key"
-```
-
-Or create a local `.env` file in the project folder:
-
-```text
-PUSHOVER_APP_TOKEN=your_app_token
-PUSHOVER_USER_KEY=your_user_key
-```
-
-4. In `config.json`, set:
+Then enable alerts in `config.json`:
 
 ```json
 "pushover_enabled": true
 ```
 
-5. Send a test:
+Send a test notification:
 
 ```powershell
 .\scripts\test-pushover.ps1
 ```
 
-Default alerts:
+Default alerts include:
 
-- Valid LONG/SHORT setup
-- Execution status
-- One scan-summary setup block after each scan
-- Bot started
-- Bot stopped
-- Bot crashed
+- Valid LONG/SHORT setup.
+- Execution status.
+- Scan-summary setup block.
+- Bot started, stopped, or crashed.
 
-Extra no-trade alerts stay off unless `pushover_alert_no_trade` is set to `true`.
+## Shared Log Feed
 
-## Shared Terminal Feed
-
-Every bot run now writes to:
+Every bot run writes console output to:
 
 ```text
 logs\bot.log
 ```
 
-Any device can watch the same live feed:
+Watch the shared feed:
 
 ```powershell
 .\scripts\watch-bot-log.ps1
 ```
-
-This is more reliable than trying to mirror one interactive PowerShell window.
 
 ## Bot Status Heartbeat
 
@@ -194,13 +126,13 @@ Every bot run updates:
 runtime\status.json
 ```
 
-Watch it from any remote device:
+Watch bot status:
 
 ```powershell
 .\scripts\watch-bot-status.ps1
 ```
 
-Meanings:
+Status meanings:
 
 - `RUNNING`: the bot is alive and updating heartbeat.
 - `STOPPED`: the bot stopped gracefully.
@@ -215,40 +147,15 @@ Default stale threshold is 180 seconds. Override it if needed:
 
 ## Safety Rules
 
-- Run the bot on one machine only: the home MT5 laptop.
-- Other devices should connect to that machine, not run separate bot copies.
-- Trade locking writes to `runtime\trade_lock.json` to block duplicate setup execution.
-- Keep `--live` disabled until you deliberately want execution.
-- Use `.\scripts\start-bot-dry-run.ps1` for monitoring.
-- Use `.\scripts\start-bot-live.ps1` only when you accept real MT5 execution.
-- Keep the laptop awake and plugged in.
-- Do not expose ports manually on your router.
-
-## Backup Access With Tailscale
-
-Install Tailscale on:
-
-- Home MT5 laptop
-- Office laptop 1
-- Laptop 2
-- iPhone/iPad
-
-This gives you a private network path if the VS Code tunnel needs recovery.
-Use it for RDP or other emergency access, not as the primary bot interface.
+- Run the live bot on one primary host only.
+- Do not run duplicate live bot instances against the same account.
+- Keep `--live` disabled until real execution is intentional.
+- Use `.\scripts\start-bot-dry-run.ps1` for monitoring and validation.
+- Use `.\scripts\start-bot-live.ps1` only when live execution is intended.
+- Keep `.env`, `config.json`, logs, runtime files, and signal output out of Git.
+- Do not expose local ports publicly unless the access layer is secured.
 
 ## Troubleshooting
-
-Check tunnel status:
-
-```powershell
-code tunnel status
-```
-
-Restart the tunnel manually:
-
-```powershell
-.\scripts\start-vscode-tunnel.ps1
-```
 
 Watch the bot log:
 
@@ -270,7 +177,7 @@ Run one safe scan:
 
 If MT5 data fails, make sure:
 
-- MT5 is open.
-- The account is logged in.
-- `XAUUSD` is visible in Market Watch.
-- The symbol name in `config.json` matches your broker.
+- MetaTrader 5 is open.
+- The trading account is logged in.
+- The configured symbol is visible in Market Watch.
+- The symbol name in `config.json` matches the broker.

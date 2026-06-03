@@ -52,7 +52,7 @@ class BotConfig:
     liquidity_pool_lookback: int = 50
     equal_level_tolerance: float = 0.30
     external_analyzer_enabled: bool = False
-    external_analyzer_path: str = r"C:\2026\CodexAlyzer\main.py"
+    external_analyzer_path: str = ""
     external_analyzer_require_alignment: bool = True
     external_analyzer_use_groq: bool = False
     external_analyzer_groq_min_interval_minutes: int = 5

@@ -1,5 +1,5 @@
 param(
-    [string]$Name = "xau-mt5-home"
+    [string]$Name = "xau-mt5-host"
 )
 
 $ErrorActionPreference = "Stop"

@@ -21,6 +21,9 @@ class ExternalAnalyzer:
         if not self.config.external_analyzer_enabled:
             return None
 
+        if not self.config.external_analyzer_path.strip():
+            return self._error("External analyzer path is not configured")
+
         path = Path(self.config.external_analyzer_path)
         if not path.exists():
             return self._error(f"External analyzer not found: {path}")
