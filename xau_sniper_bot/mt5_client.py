@@ -8,6 +8,9 @@ import pandas as pd
 
 
 TIMEFRAMES = {
+    "W1": "TIMEFRAME_W1",
+    "D1": "TIMEFRAME_D1",
+    "H4": "TIMEFRAME_H4",
     "H1": "TIMEFRAME_H1",
     "M15": "TIMEFRAME_M15",
     "M5": "TIMEFRAME_M5",
@@ -39,10 +42,16 @@ class MT5Client:
         self.mt5.shutdown()
 
     def rates(self, timeframe: str, bars: int) -> pd.DataFrame:
+        return self.rates_for_symbol(self.symbol, timeframe, bars)
+
+    def rates_for_symbol(self, symbol: str, timeframe: str, bars: int) -> pd.DataFrame:
+        selected = self.mt5.symbol_select(symbol, True)
+        if not selected:
+            raise RuntimeError(f"Could not select symbol {symbol}: {self.mt5.last_error()}")
         mt5_timeframe = getattr(self.mt5, TIMEFRAMES[timeframe])
-        rates = self.mt5.copy_rates_from_pos(self.symbol, mt5_timeframe, 0, bars)
+        rates = self.mt5.copy_rates_from_pos(symbol, mt5_timeframe, 0, bars)
         if rates is None or len(rates) == 0:
-            raise RuntimeError(f"No {timeframe} rates for {self.symbol}: {self.mt5.last_error()}")
+            raise RuntimeError(f"No {timeframe} rates for {symbol}: {self.mt5.last_error()}")
 
         frame = pd.DataFrame(rates)
         frame["time"] = pd.to_datetime(frame["time"], unit="s", utc=True)

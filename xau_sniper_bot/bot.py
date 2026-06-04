@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+from .analysis_framework import AnalysisFrameworkEngine, FrameworkAnalysis
 from .config import BotConfig, load_config
 from .confirmation import M5ConfirmationEngine
 from .external_analyzer import ExternalAnalyzer
@@ -34,11 +35,19 @@ from .structure import H1BiasEngine, M15ZoneEngine
 
 @dataclass
 class MarketState:
+    w1: pd.DataFrame | None = None
+    d1: pd.DataFrame | None = None
+    h4: pd.DataFrame | None = None
     h1: pd.DataFrame | None = None
     m15: pd.DataFrame | None = None
     m5: pd.DataFrame | None = None
     bias: BiasSnapshot | None = None
     zones: list[Zone] | None = None
+    framework_analysis: FrameworkAnalysis | None = None
+    framework_updated_at: datetime | None = None
+    framework_feed_updated_at: datetime | None = None
+    dxy_frames: dict[str, pd.DataFrame] | None = None
+    dxy_error: str | None = None
     h1_updated_at: datetime | None = None
     m15_updated_at: datetime | None = None
     m5_updated_at: datetime | None = None
@@ -48,6 +57,7 @@ class XauSniperBot:
     def __init__(self, config: BotConfig) -> None:
         self.config = config
         self.mt5 = MT5Client(config.symbol)
+        self.framework_analyzer = AnalysisFrameworkEngine(config)
         self.bias_engine = H1BiasEngine(config)
         self.zone_engine = M15ZoneEngine(config)
         self.confirmation_engine = M5ConfirmationEngine(config)
@@ -98,15 +108,16 @@ class XauSniperBot:
         self.status.running("Scanning market")
         self._refresh_h1_if_due(now)
         self._refresh_m15_if_due(now)
+        self._refresh_framework_if_due(now)
         self._refresh_m5_if_due(now)
 
         if self.state.bias is None or self.state.bias.bias == Bias.NEUTRAL:
             self._write_no_trade(
-                "No directional H1 bias yet; standing aside.",
+                "No directional top-down bias yet; standing aside.",
                 current_price=self.state.bias.last_close if self.state.bias else None,
                 zones=[],
             )
-            self.status.running("No directional H1 bias yet")
+            self.status.running("No directional top-down bias yet")
             return
         if not self.state.zones:
             self._write_no_trade(
@@ -209,6 +220,11 @@ class XauSniperBot:
                 )
                 continue
 
+            framework_block = self._framework_signal_block(trigger.direction)
+            if framework_block:
+                wait_reasons.append(framework_block)
+                continue
+
             liquidity = self.liquidity_analyzer.analyze(
                 m1=m1,
                 m5=self.state.m5,
@@ -241,6 +257,7 @@ class XauSniperBot:
                 validation=validation,
                 external_analysis=external_analysis,
                 liquidity=liquidity,
+                framework_analysis=_framework_payload(self.state.framework_analysis),
             )
             external_aligned = self.external_analyzer.aligns_with(
                 external_analysis,
@@ -302,8 +319,6 @@ class XauSniperBot:
         )
 
     def _refresh_m15_if_due(self, now: datetime) -> None:
-        if self.state.bias is None:
-            return
         if not _due(self.state.m15_updated_at, now, self.config.m15_check_minutes):
             return
         m15 = self.mt5.rates("M15", self.config.m15_bars)
@@ -319,6 +334,61 @@ class XauSniperBot:
         else:
             print("M15 zones: none")
 
+    def _refresh_framework_if_due(self, now: datetime) -> None:
+        if not self.config.analysis_framework_enabled:
+            return
+        if self.state.h1 is None or self.state.m15 is None:
+            return
+        refresh_feeds = _due(
+            self.state.framework_feed_updated_at,
+            now,
+            self.config.h1_check_minutes,
+        )
+        previous_analysis = self.state.framework_analysis
+
+        gold_frames: dict[str, pd.DataFrame] = {
+            "H1": self.state.h1,
+            "M15": self.state.m15,
+        }
+        macro_specs = (
+            ("W1", "w1", self.config.w1_bars),
+            ("D1", "d1", self.config.d1_bars),
+            ("H4", "h4", self.config.h4_bars),
+        )
+        for timeframe, state_attr, bars in macro_specs:
+            frame = getattr(self.state, state_attr)
+            if refresh_feeds or frame is None:
+                frame = self._safe_rates(self.config.symbol, timeframe, bars)
+            if frame is not None:
+                setattr(self.state, state_attr, frame)
+                gold_frames[timeframe] = frame
+        dxy_frames, dxy_error = self._dxy_frames(refresh_feeds)
+
+        try:
+            analysis = self.framework_analyzer.analyze(
+                gold_frames,
+                dxy_frames=dxy_frames,
+                dxy_error=dxy_error,
+                now=now,
+            )
+        except Exception as exc:
+            print(f"Framework analysis failed: {exc}")
+            return
+
+        self.state.framework_analysis = analysis
+        self.state.framework_updated_at = now
+        if refresh_feeds:
+            self.state.framework_feed_updated_at = now
+        self.state.bias = analysis.to_bias_snapshot()
+        if refresh_feeds or _framework_blocks_changed(previous_analysis, analysis):
+            print(
+                f"Framework bias: {analysis.bias} "
+                f"score={analysis.bias_score:.1f} "
+                f"confidence={analysis.confidence:.0f}% "
+                f"tradeable={analysis.tradeable} "
+                f"blocks={'; '.join(analysis.hard_blocks) or 'none'}"
+            )
+
     def _refresh_m5_if_due(self, now: datetime) -> None:
         if not self.state.zones:
             return
@@ -327,6 +397,43 @@ class XauSniperBot:
         self.state.m5 = self.mt5.rates("M5", self.config.m5_bars)
         self.state.m5_updated_at = now
         print("M5 confirmation data refreshed")
+
+    def _safe_rates(
+        self,
+        symbol: str,
+        timeframe: str,
+        bars: int,
+    ) -> pd.DataFrame | None:
+        try:
+            if symbol == self.config.symbol:
+                return self.mt5.rates(timeframe, bars)
+            return self.mt5.rates_for_symbol(symbol, timeframe, bars)
+        except Exception as exc:
+            print(f"{symbol} {timeframe} unavailable for framework analysis: {exc}")
+            return None
+
+    def _dxy_frames(self, refresh_feeds: bool) -> tuple[dict[str, pd.DataFrame], str | None]:
+        if not self.config.dxy_enabled:
+            return {}, None
+        if not refresh_feeds and self.state.dxy_frames is not None:
+            return self.state.dxy_frames, self.state.dxy_error
+        frames: dict[str, pd.DataFrame] = {}
+        errors: list[str] = []
+        for timeframe, bars in (
+            ("W1", self.config.w1_bars),
+            ("D1", self.config.d1_bars),
+            ("H4", self.config.h4_bars),
+            ("H1", self.config.h1_bars),
+            ("M15", self.config.m15_bars),
+        ):
+            frame = self._safe_rates(self.config.dxy_symbol, timeframe, bars)
+            if frame is None:
+                errors.append(f"{self.config.dxy_symbol} {timeframe} unavailable")
+            else:
+                frames[timeframe] = frame
+        self.state.dxy_frames = frames
+        self.state.dxy_error = "; ".join(errors) if errors and not frames else None
+        return frames, self.state.dxy_error
 
     def _write_no_trade(
         self,
@@ -348,6 +455,7 @@ class XauSniperBot:
             zones=zones,
             external_analysis=external_analysis,
             market_context=market_context,
+            framework_analysis=_framework_payload(self.state.framework_analysis),
         )
         self._notify_scan_summary(
             reason,
@@ -373,6 +481,30 @@ class XauSniperBot:
             spread=spread,
             now=now,
         )
+
+    def _framework_signal_block(self, direction: Direction) -> str | None:
+        if not self.config.analysis_framework_enabled:
+            return None
+        analysis = self.state.framework_analysis
+        if analysis is None:
+            return "Top-down framework analysis is not available yet."
+        if analysis.allows_direction(direction):
+            return None
+
+        expected = "LONG" if direction == Direction.BUY else "SHORT"
+        if analysis.hard_blocks:
+            return "Framework hard block: " + "; ".join(analysis.hard_blocks[:3])
+        if analysis.direction != expected:
+            return (
+                f"Framework direction is {analysis.direction or 'NO TRADE'}, "
+                f"not {expected}."
+            )
+        if not analysis.tradeable:
+            return (
+                f"Framework bias is {analysis.bias}; waiting for moderate/strong "
+                "top-down confluence before execution."
+            )
+        return "Framework gate did not approve this setup."
 
     def _continuation_candidate(
         self,
@@ -468,6 +600,7 @@ class XauSniperBot:
             zones=zones,
             external_analysis=external_analysis,
             market_context=market_context,
+            framework_analysis=_framework_payload(self.state.framework_analysis),
         )
         if self.notifier.enabled and self.config.pushover_alert_scan_summary:
             print(f"Pushover scan summary alert: {result.message}")
@@ -537,6 +670,19 @@ def _zone_key(zone: Zone) -> str:
         f"{zone.setup_type}:{zone.direction.value}:"
         f"{zone.timeframe}:{zone.low:.2f}:{zone.high:.2f}"
     )
+
+
+def _framework_payload(analysis: FrameworkAnalysis | None) -> dict | None:
+    return analysis.to_dict() if analysis is not None else None
+
+
+def _framework_blocks_changed(
+    previous: FrameworkAnalysis | None,
+    current: FrameworkAnalysis,
+) -> bool:
+    if previous is None:
+        return True
+    return previous.hard_blocks != current.hard_blocks or previous.tradeable != current.tradeable
 
 
 def _scan_summary_key(

@@ -41,6 +41,7 @@ class OutputWriter:
         zones: list[Zone] | None = None,
         external_analysis: ExternalAnalysis | None = None,
         market_context: MarketContext | None = None,
+        framework_analysis: dict | None = None,
     ) -> None:
         text = format_no_trade_setup(
             symbol=symbol,
@@ -50,6 +51,7 @@ class OutputWriter:
             zones=zones or [],
             external_analysis=external_analysis,
             market_context=market_context,
+            framework_analysis=framework_analysis,
             zone_stale_after_hours=self.config.zone_stale_after_hours,
             zone_expire_after_hours=self.config.zone_expire_after_hours,
             zone_near_threshold_points=self.config.zone_near_threshold_points,
@@ -67,6 +69,7 @@ class OutputWriter:
             "market_context": _payload_safe(asdict(market_context))
             if market_context
             else None,
+            "framework_analysis": framework_analysis,
             "trade_setup_text": text,
         }
         print("\n" + text)
@@ -126,6 +129,7 @@ def format_trade_setup(signal: Signal) -> str:
             f"Target 1  : {_target_line(trigger.target_1)}",
             f"Target 2  : {_target_line(trigger.target_2)}",
             f"R:R       : 1:{trigger.risk_reward:.1f}",
+            _framework_line(signal.framework_analysis),
             _external_line(signal),
             _liquidity_line(signal),
             _execution_line(signal),
@@ -143,6 +147,7 @@ def format_no_trade_setup(
     zones: list[Zone],
     external_analysis: ExternalAnalysis | None,
     market_context: MarketContext | None = None,
+    framework_analysis: dict | None = None,
     zone_stale_after_hours: float = 12.0,
     zone_expire_after_hours: float = 36.0,
     zone_near_threshold_points: float = 5.0,
@@ -160,6 +165,7 @@ def format_no_trade_setup(
             "Target 1  : N/A",
             "Target 2  : N/A",
             "R:R       : N/A",
+            _framework_line(framework_analysis),
             _external_no_trade_line(external_analysis),
             _market_volume_line(market_context),
             _market_liquidity_line(market_context),
@@ -402,6 +408,27 @@ def _external_line(signal: Signal) -> str:
     status = "ALIGNED" if _external_direction_matches(signal) else "NOT ALIGNED"
     source = "Groq" if analysis.groq_called else "Local"
     return _external_summary_line(analysis, f"{source} {status}")
+
+
+def _framework_line(analysis: dict | None) -> str:
+    if not analysis:
+        return "Framework : Not checked."
+    bias = analysis.get("bias", "UNKNOWN")
+    score = analysis.get("bias_score")
+    confidence = analysis.get("confidence")
+    direction = analysis.get("direction") or "NO TRADE"
+    tradeable = analysis.get("tradeable", False)
+    blocks = analysis.get("hard_blocks") or []
+    score_text = f"{float(score):.1f}" if isinstance(score, (int, float)) else "n/a"
+    confidence_text = (
+        f"{float(confidence):.0f}%" if isinstance(confidence, (int, float)) else "n/a"
+    )
+    status = "TRADEABLE" if tradeable else "BLOCKED" if blocks else "WATCH"
+    block_text = f" | {'; '.join(str(block) for block in blocks[:2])}" if blocks else ""
+    return (
+        f"Framework : {bias} {direction} ({status}) | "
+        f"score {score_text}, confidence {confidence_text}.{block_text}"
+    )
 
 
 def _external_no_trade_line(analysis: ExternalAnalysis | None) -> str:

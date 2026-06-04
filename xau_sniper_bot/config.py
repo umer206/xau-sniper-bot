@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +10,9 @@ from typing import Any
 @dataclass(frozen=True)
 class BotConfig:
     symbol: str = "XAUUSD"
+    w1_bars: int = 260
+    d1_bars: int = 300
+    h4_bars: int = 350
     h1_bars: int = 350
     m15_bars: int = 500
     m5_bars: int = 300
@@ -20,6 +23,21 @@ class BotConfig:
     m1_check_seconds: int = 60
     h1_bias_mode: str = "balanced"
     swing_window: int = 2
+    analysis_framework_enabled: bool = True
+    analysis_ma_type: str = "ema"
+    analysis_swing_window: int = 5
+    analysis_level_tolerance_points: float = 2.0
+    analysis_ma_sandwich_timeframes: list[str] = field(
+        default_factory=lambda: ["D1", "H4", "H1"]
+    )
+    dxy_enabled: bool = True
+    dxy_symbol: str = "DXY"
+    dxy_confirmation_required: bool = True
+    asian_thin_liquidity_filter_enabled: bool = True
+    asian_thin_liquidity_start_hour_utc: int = 0
+    asian_thin_liquidity_end_hour_utc: int = 6
+    high_impact_news_filter_enabled: bool = True
+    high_impact_news_windows_utc: list[dict[str, str]] = field(default_factory=list)
     atr_period: int = 14
     zone_atr_padding: float = 0.20
     zone_max_age_bars: int = 120
@@ -34,7 +52,7 @@ class BotConfig:
     rejection_wick_ratio: float = 1.15
     min_m1_atr: float = 0.0
     max_m1_atr: float = 0.0
-    risk_reward_floor: float = 1.25
+    risk_reward_floor: float = 1.50
     continuation_mode_enabled: bool = True
     continuation_lookback_bars: int = 24
     continuation_displacement_lookback: int = 8

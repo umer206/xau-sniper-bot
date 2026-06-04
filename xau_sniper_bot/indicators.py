@@ -3,8 +3,35 @@ from __future__ import annotations
 import pandas as pd
 
 
+def sma(series: pd.Series, period: int) -> pd.Series:
+    return series.rolling(period).mean()
+
+
 def ema(series: pd.Series, period: int) -> pd.Series:
     return series.ewm(span=period, adjust=False).mean()
+
+
+def rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = delta.clip(lower=0.0)
+    loss = -delta.clip(upper=0.0)
+    average_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
+    average_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
+    relative_strength = average_gain / average_loss.replace(0.0, float("nan"))
+    values = 100.0 - (100.0 / (1.0 + relative_strength))
+    return values.fillna(50.0)
+
+
+def macd(
+    series: pd.Series,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    line = ema(series, fast) - ema(series, slow)
+    signal_line = ema(line, signal)
+    histogram = line - signal_line
+    return line, signal_line, histogram
 
 
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:

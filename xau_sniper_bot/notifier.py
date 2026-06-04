@@ -71,6 +71,7 @@ class PushoverNotifier:
         zones: list[Zone],
         external_analysis: ExternalAnalysis | None,
         market_context: MarketContext | None = None,
+        framework_analysis: dict | None = None,
     ) -> NotificationResult:
         if not self.config.pushover_alert_scan_summary:
             return NotificationResult(False, "Scan summary alerts disabled")
@@ -82,6 +83,7 @@ class PushoverNotifier:
             zones=zones,
             external_analysis=external_analysis,
             market_context=market_context,
+            framework_analysis=framework_analysis,
             zone_stale_after_hours=self.config.zone_stale_after_hours,
             zone_expire_after_hours=self.config.zone_expire_after_hours,
             zone_near_threshold_points=self.config.zone_near_threshold_points,

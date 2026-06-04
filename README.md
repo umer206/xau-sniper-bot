@@ -11,6 +11,33 @@ Multi-timeframe MetaTrader 5 scanner and execution assistant for XAUUSD setups.
 
 The bot is dry-run by default. It prints signals to the console and writes JSONL signal records locally.
 
+## Top-Down Framework
+
+The bot now runs a full framework layer above the existing sniper trigger:
+
+- W1, D1, H4, H1, and M15 XAUUSD analysis
+- MA50/MA200, RSI, MACD, swing structure, BOS/CHOCH, FVG, and S/R scoring
+- Optional DXY analysis across the same framework timeframes
+- Final bias score, confidence cap at 85%, and setup plan context
+- Hard blocks for MA sandwich zones, 00:00-06:00 UTC thin liquidity, configured high-impact news windows, weekly-bias conflict, and missing/misaligned DXY confirmation
+
+The framework decides whether the bot is allowed to hunt. The existing M5/M1
+logic still has to confirm the exact execution trigger before any signal emits.
+
+Key settings:
+
+```json
+"analysis_framework_enabled": true,
+"dxy_symbol": "DXY",
+"dxy_confirmation_required": true,
+"analysis_ma_sandwich_timeframes": ["D1", "H4", "H1"],
+"high_impact_news_windows_utc": []
+```
+
+If your broker uses another DXY symbol name, set `dxy_symbol` in `config.json`.
+When DXY confirmation is required and DXY is unavailable, the framework blocks
+trades instead of treating the missing feed as confirmation.
+
 `h1_bias_mode` controls how selective the H1 direction engine is:
 
 - `balanced`: EMA stack or clean HH/HL / LH/LL structure can define bias.

@@ -169,6 +169,7 @@ class Signal:
     external_analysis: ExternalAnalysis | None = None
     liquidity: LiquiditySnapshot | None = None
     execution: ExecutionResult | None = None
+    framework_analysis: dict[str, Any] | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
